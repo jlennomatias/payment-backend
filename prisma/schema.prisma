@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Consents {
+  consentId            String    @id
+  cpf                  String
+  cnpj                 String?
+  creationDateTime     DateTime  @default(now())
+  statusUpdateDateTime DateTime  @updatedAt
+  proxy                String
+  ispbDebtor           String
+  issuerDebtor         String
+  numberDebtor         String
+  accountTypeDebtor    String
+  ispbCreditor         String?
+  issuerCreditor       String?
+  numberCreditor       String?
+  accountTypeCreditor  String?
+  Payments             Payments?
+
+  @@map("consents")
+}
+
+model Payments {
+  paymentId                 String    @id @default(uuid())
+  consentId                 Consents  @relation(fields: [consentsConsentId], references: [consentId], onDelete: Cascade)
+  consentsConsentId         String    @unique
+  endToEndId                String
+  creationDateTime          DateTime  @default(now())
+  statusUpdateDateTime      DateTime  @updatedAt
+  proxy                     String
+  ibgeTownCode              String
+  status                    String
+  localInstrument           String
+  cnpjInitiator             String
+  amount                    String
+  currency                  String
+  transactionIdentification String
+  remittanceInformation     String
+  authorisationFlow         String
+  qrCode                    String?
+  code                      String?
+  detail                    String?
+  reason                    String?
+  cancelledFrom             String?
+  cancelledAt               DateTime? @default(now())
+  cancelledByIdentification String?
+  cancelledByRel            String?
+
+  @@map("payments")
+}
+
+model RecurringConsents {
+  recurringConsentId   String             @id
+  cpf                  String
+  cnpj                 String?
+  creationDateTime     DateTime           @default(now())
+  statusUpdateDateTime DateTime           @updatedAt
+  proxy                String
+  ispbDebtor           String
+  issuerDebtor         String
+  numberDebtor         String
+  accountTypeDebtor    String
+  ispbCreditor         String?
+  issuerCreditor       String?
+  numberCreditor       String?
+  accountTypeCreditor  String?
+  AutomaticPayments    AutomaticPayments?
+
+  @@map("recurringConsents")
+}
+
+model AutomaticPayments {
+  recurringPaymentId                    String            @id @default(uuid())
+  recurringConsentId                    RecurringConsents @relation(fields: [consentsRecurringConsentId], references: [recurringConsentId], onDelete: Cascade)
+  consentsRecurringConsentId            String            @unique
+  endToEndId                            String
+  date                                  String
+  creationDateTime                      DateTime          @default(now())
+  statusUpdateDateTime                  DateTime          @updatedAt
+  proxy                                 String
+  ibgeTownCode                          String
+  status                                String
+  cnpjInitiator                         String
+  paymentAmount                         String
+  paymentCurrency                       String
+  transactionIdentification             String
+  remittanceInformation                 String
+  authorisationFlow                     String
+  qrCode                                String?
+  rejectionCode                         String?
+  rejectionDetail                       String?
+  cancellationReason                    String?
+  cancellationCancelledFrom             String?
+  cancellationCancelledAt               DateTime?         @default(now())
+  cancellationCancelledByIdentification String?
+  cancellationCancelledByRel            String?
+
+  @@map("automaticPayments")
+}
