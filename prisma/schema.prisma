@@ -14,11 +14,11 @@ datasource db {
 }
 
 model Consents {
-  consentId            String    @id
+  consentId            String     @id
   cpf                  String
   cnpj                 String?
-  creationDateTime     DateTime  @default(now())
-  statusUpdateDateTime DateTime  @updatedAt
+  creationDateTime     DateTime   @default(now())
+  statusUpdateDateTime DateTime   @updatedAt
   proxy                String
   ispbDebtor           String
   issuerDebtor         String
@@ -28,15 +28,15 @@ model Consents {
   issuerCreditor       String?
   numberCreditor       String?
   accountTypeCreditor  String?
-  Payments             Payments?
+  Payments             Payments[]
 
   @@map("consents")
 }
 
 model Payments {
   paymentId                 String    @id @default(uuid())
-  consentId                 Consents  @relation(fields: [consentsConsentId], references: [consentId], onDelete: Cascade)
-  consentsConsentId         String    @unique
+  consent                   Consents  @relation(fields: [consentId], references: [consentId], onDelete: Cascade)
+  consentId                 String
   endToEndId                String
   creationDateTime          DateTime  @default(now())
   statusUpdateDateTime      DateTime  @updatedAt

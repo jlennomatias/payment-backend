@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
 import { PaymentsV4Service } from './payments-v4.service';
 import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
-import { UpdatePaymentsV4Dto } from './dto/update-payments-v4.dto';
+import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 
-@Controller('payments-v4')
+@Controller('payments')
 export class PaymentsV4Controller {
   constructor(private readonly paymentsV4Service: PaymentsV4Service) {}
 
@@ -12,23 +12,29 @@ export class PaymentsV4Controller {
     return this.paymentsV4Service.create(createPaymentsV4Dto);
   }
 
-  @Get()
-  findAll() {
-    return this.paymentsV4Service.findAll();
+  @Get('consents/:id')
+  findAll(@Param('id') id: string) {
+    return this.paymentsV4Service.findAll(id);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.paymentsV4Service.findOne(+id);
+    return this.paymentsV4Service.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePaymentsV4Dto: UpdatePaymentsV4Dto) {
-    return this.paymentsV4Service.update(+id, updatePaymentsV4Dto);
+  updateOne(
+    @Param('id') id: string,
+    @Body() cancelPaymentsV4Dto: CancelPaymentsV4Dto,
+  ) {
+    return this.paymentsV4Service.update(id, cancelPaymentsV4Dto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.paymentsV4Service.remove(+id);
+  @Patch('consents/:id')
+  updateAll(
+    @Param('id') id: string,
+    @Body() cancelPaymentsV4Dto: CancelPaymentsV4Dto,
+  ) {
+    return this.paymentsV4Service.updateAll(id, cancelPaymentsV4Dto);
   }
 }

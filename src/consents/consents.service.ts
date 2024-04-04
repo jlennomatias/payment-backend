@@ -40,6 +40,7 @@ export class ConsentsService {
     const consent = await this.prismaService.consents.findUnique({
       where: { consentId: id },
     });
+
     return this.mapToConsentResponseDto(consent);
   }
 
