@@ -1,9 +1,9 @@
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
-import { NoutFoundError } from 'src/erros';
+import { NotFoundError } from 'src/erros';
 
-@Catch(NoutFoundError)
+@Catch(NotFoundError)
 export class NotFoundErrorFilter implements ExceptionFilter {
-  catch(exception: NoutFoundError, host: ArgumentsHost) {
+  catch(exception: NotFoundError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
 

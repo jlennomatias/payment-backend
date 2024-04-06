@@ -3,7 +3,6 @@ export class ConsentResponseDto {
     consentId: string;
     cpf: string;
     cnpj?: string;
-    proxy: string;
     creditorAccount?: {
       ispb: string;
       issuer: string;

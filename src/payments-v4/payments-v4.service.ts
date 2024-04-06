@@ -3,7 +3,7 @@ import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
 import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { NoutFoundError } from 'src/erros';
+import { NotEqualError, NotFoundError } from 'src/erros';
 
 @Injectable()
 export class PaymentsV4Service {
@@ -39,6 +39,14 @@ export class PaymentsV4Service {
                 remittanceInformation: dto.remittanceInformation,
                 authorisationFlow: dto.authorisationFlow,
                 qrCode: dto.qrCode,
+                ispbDebtor: existingConsent.ispbDebtor,
+                issuerDebtor: existingConsent.issuerDebtor,
+                numberDebtor: existingConsent.numberDebtor,
+                accountTypeDebtor: existingConsent.accountTypeDebtor,
+                ispbCreditor: existingConsent.ispbCreditor,
+                issuerCreditor: existingConsent.issuerCreditor,
+                numberCreditor: existingConsent.numberCreditor,
+                accountTypeCreditor: existingConsent.accountTypeCreditor,
               },
             });
             return payment;
@@ -47,10 +55,10 @@ export class PaymentsV4Service {
 
         return this.mapToPaymentV4ResponseDto(payments);
       } else {
-        console.log('consentimento não localizado: ');
+        throw new NotFoundError(`Consent with ID ${consentId} not found`);
       }
     } else {
-      return { error: 'consentId são diferentes' };
+      throw new NotEqualError(`Consents are not equal`);
     }
   }
 
@@ -71,8 +79,9 @@ export class PaymentsV4Service {
       return this.mapToPaymentV4ResponseDto(payment);
     } catch (error) {
       if (error.code === 'P2025') {
-        throw new NoutFoundError(`Payment with ID ${id} not found`);
+        throw new NotFoundError(`Payment with ID ${id} not found`);
       }
+      throw error;
     }
   }
 

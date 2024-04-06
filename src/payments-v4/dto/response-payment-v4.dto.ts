@@ -10,7 +10,7 @@ export class ResponsePaymentsV4Dto {
       qrCode?: string;
       ibgeTownCode: string;
       status: string;
-      rejectionReason: {
+      rejectionReason?: {
         code: string;
         detail: string;
       };
@@ -22,7 +22,7 @@ export class ResponsePaymentsV4Dto {
       };
       transactionIdentification: string;
       remittanceInformation: string;
-      creditorAccount?: {
+      creditorAccount: {
         ispb: string;
         issuer: string;
         number: string;

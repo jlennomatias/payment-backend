@@ -19,7 +19,6 @@ model Consents {
   cnpj                 String?
   creationDateTime     DateTime   @default(now())
   statusUpdateDateTime DateTime   @updatedAt
-  proxy                String
   ispbDebtor           String
   issuerDebtor         String
   numberDebtor         String
@@ -50,6 +49,14 @@ model Payments {
   transactionIdentification String
   remittanceInformation     String
   authorisationFlow         String
+  ispbDebtor                String
+  issuerDebtor              String
+  numberDebtor              String
+  accountTypeDebtor         String
+  ispbCreditor              String
+  issuerCreditor            String
+  numberCreditor            String
+  accountTypeCreditor       String
   qrCode                    String?
   code                      String?
   detail                    String?
