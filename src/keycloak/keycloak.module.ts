@@ -13,7 +13,7 @@ import {
       authServerUrl: 'http://localhost:8080',
       realm: 'master',
       clientId: 'admin',
-      secret: 'spUE8ppsfNiCh7rWyDB7QYofUWXm9W0v',
+      secret: '7R8KyU4058o6Uwr87hNFRgJuqbmbbR5D',
     }),
   ],
   providers: [

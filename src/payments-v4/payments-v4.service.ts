@@ -4,70 +4,92 @@ import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { NotEqualError, NotFoundError } from 'src/erros';
+import { PixService } from 'src/pix/pix.service';
 
 @Injectable()
 export class PaymentsV4Service {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private pixService: PixService,
+  ) {}
 
   async create(createPaymentsV4Dto: CreatePaymentsV4Dto) {
-    // Validar se o consentimento são iguais
-    const consentId = createPaymentsV4Dto.data[0].consentId;
-    const allConsentIdsAreEqual = createPaymentsV4Dto.data.every(
-      (item) => item.consentId === consentId,
-    );
+    try {
+      // Validar se o consentimento são iguais
+      const consentId = createPaymentsV4Dto.data[0].consentId;
+      const allConsentIdsAreEqual = createPaymentsV4Dto.data.every(
+        (item) => item.consentId === consentId,
+      );
 
-    if (allConsentIdsAreEqual) {
-      const existingConsent = await this.prismaService.consents.findUnique({
-        where: { consentId },
-      });
-      if (existingConsent) {
-        console.log('consentimento localizado: ');
-        const payments = await Promise.all(
-          createPaymentsV4Dto.data.map(async (dto) => {
-            const payment = await this.prismaService.payments.create({
-              data: {
-                consent: { connect: { consentId } },
-                proxy: dto.proxy,
-                endToEndId: dto.endToEndId,
-                ibgeTownCode: dto.ibgeTownCode,
-                status: 'RCVD',
-                localInstrument: dto.localInstrument,
-                cnpjInitiator: dto.cnpjInitiator,
-                amount: dto.payment.amount,
-                currency: dto.payment.currency,
-                transactionIdentification: dto.transactionIdentification,
-                remittanceInformation: dto.remittanceInformation,
-                authorisationFlow: dto.authorisationFlow,
-                qrCode: dto.qrCode,
-                ispbDebtor: existingConsent.ispbDebtor,
-                issuerDebtor: existingConsent.issuerDebtor,
-                numberDebtor: existingConsent.numberDebtor,
-                accountTypeDebtor: existingConsent.accountTypeDebtor,
-                ispbCreditor: existingConsent.ispbCreditor,
-                issuerCreditor: existingConsent.issuerCreditor,
-                numberCreditor: existingConsent.numberCreditor,
-                accountTypeCreditor: existingConsent.accountTypeCreditor,
-              },
-            });
-            return payment;
-          }),
-        );
-
-        return this.mapToPaymentV4ResponseDto(payments);
+      if (allConsentIdsAreEqual) {
+        const existingConsent = await this.prismaService.consents.findUnique({
+          where: { consentId },
+        });
+        if (existingConsent) {
+          console.log('consentimento localizado');
+          const payments = await Promise.all(
+            createPaymentsV4Dto.data.map(async (dto) => {
+              const payment = await this.prismaService.payments.create({
+                data: {
+                  consent: { connect: { consentId } },
+                  proxy: dto.proxy,
+                  endToEndId: dto.endToEndId,
+                  ibgeTownCode: dto.ibgeTownCode,
+                  status: 'RCVD',
+                  localInstrument: dto.localInstrument,
+                  cnpjInitiator: dto.cnpjInitiator,
+                  amount: dto.payment.amount,
+                  currency: dto.payment.currency,
+                  transactionIdentification: dto.transactionIdentification,
+                  remittanceInformation: dto.remittanceInformation,
+                  authorisationFlow: dto.authorisationFlow,
+                  qrCode: dto.qrCode,
+                  ispbDebtor: existingConsent.ispbDebtor,
+                  issuerDebtor: existingConsent.issuerDebtor,
+                  numberDebtor: existingConsent.numberDebtor,
+                  accountTypeDebtor: existingConsent.accountTypeDebtor,
+                  ispbCreditor: existingConsent.ispbCreditor,
+                  issuerCreditor: existingConsent.issuerCreditor,
+                  numberCreditor: existingConsent.numberCreditor,
+                  accountTypeCreditor: existingConsent.accountTypeCreditor,
+                },
+              });
+              // Cria o pix
+              this.pixService.createPix(payment);
+              return payment;
+            }),
+          );
+          return this.mapToPaymentV4ResponseDto(payments);
+        } else {
+          throw new NotFoundError(`Consent with ID ${consentId} not found`);
+        }
       } else {
-        throw new NotFoundError(`Consent with ID ${consentId} not found`);
+        throw new NotEqualError(`Consents are not equal`);
       }
-    } else {
-      throw new NotEqualError(`Consents are not equal`);
+    } catch (error) {
+      // Tratar erros gerais
+      console.error('Erro ao processar pagamento:', error);
+      throw error;
     }
   }
 
   async findAll(id: string) {
-    const payments = await this.prismaService.payments.findMany({
-      where: { consentId: id },
-    });
+    try {
+      const payments = await this.prismaService.payments.findMany({
+        where: { consentId: id },
+      });
 
-    return this.mapToPaymentV4ResponseDto(payments);
+      if (payments.length === 0) {
+        throw new NotFoundError(`No payments found for consent with ID ${id}`);
+      }
+
+      return this.mapToPaymentV4ResponseDto(payments);
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundError(`Payment with ID ${id} not found`);
+      }
+      throw error;
+    }
   }
 
   async findOne(id: string) {

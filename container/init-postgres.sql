@@ -4,6 +4,10 @@
 CREATE DATABASE payments;
 \c payments;
 
+-- Criação da base "pix"
+CREATE DATABASE pix;
+\c pix;
+
 -- Criação da base "customers"
 CREATE DATABASE customers;
 
