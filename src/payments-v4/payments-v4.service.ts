@@ -25,11 +25,14 @@ export class PaymentsV4Service {
         const existingConsent = await this.prismaService.consents.findUnique({
           where: { consentId },
         });
+
+        // Verificar se consentimento existe
         if (existingConsent) {
           console.log('consentimento localizado');
           const payments = await Promise.all(
             createPaymentsV4Dto.data.map(async (dto) => {
-              const payment = await this.prismaService.payments.create({
+              const payment = {
+                // const payment = await this.prismaService.payments.create({
                 data: {
                   consent: { connect: { consentId } },
                   proxy: dto.proxy,
@@ -53,7 +56,9 @@ export class PaymentsV4Service {
                   numberCreditor: existingConsent.numberCreditor,
                   accountTypeCreditor: existingConsent.accountTypeCreditor,
                 },
-              });
+                // });
+              };
+
               // Cria o pix
               this.pixService.createPix(payment);
               return payment;
