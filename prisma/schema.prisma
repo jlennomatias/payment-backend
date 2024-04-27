@@ -14,11 +14,11 @@ datasource db {
 }
 
 model Consents {
-  consentId            String     @id
+  consentId            String   @id
   cpf                  String
   cnpj                 String?
-  creationDateTime     DateTime   @default(now())
-  statusUpdateDateTime DateTime   @updatedAt
+  creationDateTime     DateTime @default(now())
+  statusUpdateDateTime DateTime @updatedAt
   ispbDebtor           String
   issuerDebtor         String
   numberDebtor         String
@@ -27,15 +27,14 @@ model Consents {
   issuerCreditor       String?
   numberCreditor       String?
   accountTypeCreditor  String?
-  Payments             Payments[]
 
   @@map("consents")
 }
 
 model Payments {
   paymentId                 String    @id @default(uuid())
-  consent                   Consents  @relation(fields: [consentId], references: [consentId], onDelete: Cascade)
   consentId                 String
+  pixId                     String
   endToEndId                String
   creationDateTime          DateTime  @default(now())
   statusUpdateDateTime      DateTime  @updatedAt
@@ -46,9 +45,9 @@ model Payments {
   cnpjInitiator             String
   amount                    String
   currency                  String
-  transactionIdentification String
+  transactionIdentification String?
   remittanceInformation     String
-  authorisationFlow         String
+  authorisationFlow         String?
   ispbDebtor                String
   issuerDebtor              String
   numberDebtor              String
@@ -70,11 +69,11 @@ model Payments {
 }
 
 model RecurringConsents {
-  recurringConsentId   String             @id
+  recurringConsentId   String   @id
   cpf                  String
   cnpj                 String?
-  creationDateTime     DateTime           @default(now())
-  statusUpdateDateTime DateTime           @updatedAt
+  creationDateTime     DateTime @default(now())
+  statusUpdateDateTime DateTime @updatedAt
   proxy                String
   ispbDebtor           String
   issuerDebtor         String
@@ -84,19 +83,17 @@ model RecurringConsents {
   issuerCreditor       String?
   numberCreditor       String?
   accountTypeCreditor  String?
-  AutomaticPayments    AutomaticPayments?
 
   @@map("recurringConsents")
 }
 
 model AutomaticPayments {
-  recurringPaymentId                    String            @id @default(uuid())
-  recurringConsentId                    RecurringConsents @relation(fields: [consentsRecurringConsentId], references: [recurringConsentId], onDelete: Cascade)
-  consentsRecurringConsentId            String            @unique
+  recurringPaymentId                    String    @id @default(uuid())
+  recurringConsentId                    String    @unique
   endToEndId                            String
   date                                  String
-  creationDateTime                      DateTime          @default(now())
-  statusUpdateDateTime                  DateTime          @updatedAt
+  creationDateTime                      DateTime  @default(now())
+  statusUpdateDateTime                  DateTime  @updatedAt
   proxy                                 String
   ibgeTownCode                          String
   status                                String
@@ -111,7 +108,7 @@ model AutomaticPayments {
   rejectionDetail                       String?
   cancellationReason                    String?
   cancellationCancelledFrom             String?
-  cancellationCancelledAt               DateTime?         @default(now())
+  cancellationCancelledAt               DateTime? @default(now())
   cancellationCancelledByIdentification String?
   cancellationCancelledByRel            String?
 

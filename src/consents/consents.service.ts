@@ -3,7 +3,7 @@ import { CreateConsentDto } from './dto/create-consent.dto';
 import { UpdateConsentDto } from './dto/update-consent.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ConsentResponseDto } from './dto/response-consent.dto';
-import { NotEqualError, NotFoundError } from 'src/erros';
+import { UnprocessableEntityError, NotFoundError } from 'src/erros';
 
 @Injectable()
 export class ConsentsService {
@@ -23,16 +23,16 @@ export class ConsentsService {
           issuerDebtor: debtorAccount.issuer,
           numberDebtor: debtorAccount.number,
           accountTypeDebtor: debtorAccount.accountType,
-          ispbCreditor: creditorAccount.ispb,
-          issuerCreditor: creditorAccount.issuer,
-          numberCreditor: creditorAccount.number,
-          accountTypeCreditor: creditorAccount.accountType,
+          ispbCreditor: creditorAccount?.ispb,
+          issuerCreditor: creditorAccount?.issuer,
+          numberCreditor: creditorAccount?.number,
+          accountTypeCreditor: creditorAccount?.accountType,
         },
       });
       return this.mapToConsentResponseDto(consent);
     } catch (error) {
       if (error.code === 'P2002') {
-        throw new NotEqualError(`The consent already exists.`);
+        throw new UnprocessableEntityError(`The consent already exists.`);
       }
       throw error;
     }

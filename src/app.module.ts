@@ -5,6 +5,8 @@ import { AutomaticPaymentsV1Module } from './automatic-payments-v1/automatic-pay
 import { RecurringConsentsModule } from './recurring-consents/recurring-consents.module';
 import { KeycloakModule } from './keycloak/keycloak.module';
 import { PixModule } from './pix/pix.module';
+import { RulesPaymentV4Module } from './rules-payment-v4/rules-payment-v4.module';
+import { WebhookPaymentsModule } from './webhook-payments/webhook-payments.module';
 
 @Module({
   imports: [
@@ -12,8 +14,10 @@ import { PixModule } from './pix/pix.module';
     PaymentsV4Module,
     AutomaticPaymentsV1Module,
     RecurringConsentsModule,
-    KeycloakModule,
+    // KeycloakModule,
     PixModule,
+    RulesPaymentV4Module,
+    WebhookPaymentsModule,
   ],
 })
 export class AppModule {}

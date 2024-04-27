@@ -5,10 +5,10 @@ export class NotFoundError extends Error {
   }
 }
 
-export class NotEqualError extends Error {
+export class UnprocessableEntityError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'NotEqualError';
+    this.name = 'UnprocessableEntityError';
   }
 }
 

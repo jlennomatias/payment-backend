@@ -68,17 +68,13 @@ class DataDto {
   @IsString()
   cnpjInitiator: string;
 
-  @IsNotEmpty()
-  @IsString()
-  transactionIdentification: string;
+  transactionIdentification?: string;
 
   @IsNotEmpty()
   @IsString()
   ibgeTownCode: string;
 
-  @IsNotEmpty()
-  @IsString()
-  authorisationFlow: string;
+  authorisationFlow?: string;
 
   @IsNotEmpty()
   @IsString()

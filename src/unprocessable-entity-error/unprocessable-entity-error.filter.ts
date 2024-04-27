@@ -1,9 +1,9 @@
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
-import { NotEqualError } from 'src/erros';
+import { UnprocessableEntityError } from 'src/erros';
 
-@Catch(NotEqualError)
+@Catch(UnprocessableEntityError)
 export class NotEqualErrorFilter implements ExceptionFilter {
-  catch(exception: NotEqualError, host: ArgumentsHost) {
+  catch(exception: UnprocessableEntityError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
 

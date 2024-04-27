@@ -20,7 +20,7 @@ export class ResponsePaymentsV4Dto {
         amount: string;
         currency: string;
       };
-      transactionIdentification: string;
+      transactionIdentification?: string;
       remittanceInformation: string;
       creditorAccount: {
         ispb: string;
@@ -34,7 +34,7 @@ export class ResponsePaymentsV4Dto {
         number: string;
         accountType: string;
       };
-      authorisationFlow: string;
+      authorisationFlow?: string;
     },
   ];
   links: {

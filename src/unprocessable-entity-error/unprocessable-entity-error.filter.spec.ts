@@ -1,4 +1,4 @@
-import { NotEqualErrorFilter } from './not-equal-error.filter';
+import { NotEqualErrorFilter } from './unprocessable-entity-error.filter';
 
 describe('NotEqualErrorFilter', () => {
   it('should be defined', () => {
