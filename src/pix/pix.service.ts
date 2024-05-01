@@ -64,6 +64,8 @@ export class PixService {
 
   async getDict(data: any): Promise<GetDictDto> {
     try {
+      console.log(data);
+
       const response = await lastValueFrom(
         this.httpService.post(`http://localhost:3030/pix/v1/dict/v2/key`, data),
       );

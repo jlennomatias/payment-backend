@@ -21,7 +21,7 @@ export class PaymentsV4Service {
     try {
       const consentId = createPaymentsV4Dto.data[0].consentId;
       // Regras de negocios
-      await this.rulesPaymentV4Service.consentsAreEquals(createPaymentsV4Dto);
+      await this.rulesPaymentV4Service.rulesCreatePayments(createPaymentsV4Dto);
 
       const existingConsent = await this.pixService.getDict(consentId);
 
@@ -31,10 +31,8 @@ export class PaymentsV4Service {
           // Cria o pix
           const pixData = await this.pixService.createPix(dto);
 
-          const pixId =
-            typeof pixData.transactionId === 'number'
-              ? pixData.transactionId.toString()
-              : pixData.transactionId;
+          const pixId = pixData.transactionId.toString();
+          console.log('- Criando pagamento');
 
           const payment = await this.prismaService.payments.create({
             data: {
@@ -67,10 +65,13 @@ export class PaymentsV4Service {
           this.webhookPaymentsService.fetchDataAndUpdate(
             pixData.transactionId,
             payment.paymentId,
+            payment.status,
           );
+
           return payment;
         }),
       );
+
       return this.mapToPaymentV4ResponseDto(payments);
     } catch (error) {
       // Tratar erros gerais
@@ -219,10 +220,12 @@ export class PaymentsV4Service {
           proxy: payment.proxy,
           ibgeTownCode: payment.ibgeTownCode,
           status: payment.status,
-          rejectionReason: {
-            code: payment.code,
-            detail: payment.detail,
-          },
+          ...(payment.code && {
+            rejectionReason: {
+              code: payment.code,
+              detail: payment.detail,
+            },
+          }),
           localInstrument: payment.localInstrument,
           cnpjInitiator: payment.cnpjInitiator,
           payment: {
@@ -243,7 +246,6 @@ export class PaymentsV4Service {
     // Retornar a estrutura com o tipo esperado
     const currentDate = new Date(); // Obtém a data atual
     const requestDateTime = dataFormat(currentDate.toISOString());
-    console.log(requestDateTime);
 
     return {
       data,

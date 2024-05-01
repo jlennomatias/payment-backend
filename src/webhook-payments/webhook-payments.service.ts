@@ -13,17 +13,21 @@ export class WebhookPaymentsService {
   ) {}
 
   @Cron(CronExpression.EVERY_10_SECONDS) // Executa a cada hora, por exemplo
-  async fetchDataAndUpdate(pixId: string, paymentId: string) {
+  async fetchDataAndUpdate(pixId: string, paymentId: string, status: string) {
     console.log(
-      `- Iniciando o WebhookPix com os valores pixId: ${pixId} e paymentId: ${paymentId}`,
+      `- Iniciando o WebhookPix com os valores pixId: ${pixId}, paymentId: ${paymentId}, status: ${status}`,
     );
     try {
       const newValue = await this.fetchData(pixId); // Obtém os dados atuais
 
       console.log(
-        `- Validando se houve alteração de status do pix \t status: ${newValue}`,
+        `- Validando se houve alteração de status do pix. status: ${this.hasValueChanged(newValue)}`,
+      );
+      console.log(
+        `- Validando se o status é um enum. status: ${this.isValidStatus(newValue)}`,
       );
       if (this.hasValueChanged(newValue) && this.isValidStatus(newValue)) {
+        console.log(`- Atualizando o status do paymentId ${paymentId}`);
         await this.updateData(newValue, paymentId); // Atualiza a base de dados se o status não for "ACSC"
       }
     } catch (error) {
@@ -44,16 +48,14 @@ export class WebhookPaymentsService {
 
   async updateData(newValue: string, paymentId: string): Promise<void> {
     // Lógica para fazer a requisição PUT para atualizar os dados na base
-    console.log('- Alterando o status do pix');
-
-    console.log('-- Alterando o status na base');
+    console.log(`-- Alterando o status para: ${newValue}`);
     await this.prismaService.payments.update({
       where: { paymentId: paymentId },
       data: {
         status: 'ACSC',
       },
     });
-    console.log('-- Acionando a api de webhook');
+    console.log('-- Acionando a api de webhook na Finansystech');
     // Atualiza na finansystech
 
     // await lastValueFrom(
@@ -65,6 +67,8 @@ export class WebhookPaymentsService {
     // );
 
     this.pixStatus = newValue; // Atualiza o último valor recebido
+
+    console.log(`-- Finalizando o webhook com status ${this.pixStatus} `);
   }
 
   hasValueChanged(newValue: any): boolean {
