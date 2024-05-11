@@ -3,7 +3,7 @@ import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
 import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { NotFoundError } from 'src/erros';
+import { DefaultError, NotFoundError } from 'src/erros';
 import { PixService } from 'src/pix/pix.service';
 import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.service';
 import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
@@ -19,11 +19,13 @@ export class PaymentsV4Service {
 
   async create(createPaymentsV4Dto: CreatePaymentsV4Dto) {
     try {
-      const consentId = createPaymentsV4Dto.data[0].consentId;
-      // Regras de negocios
-      await this.rulesPaymentV4Service.rulesCreatePayments(createPaymentsV4Dto);
+      console.log(JSON.stringify(createPaymentsV4Dto));
 
-      const existingConsent = await this.pixService.getDict(consentId);
+      // Regras de negocios
+      const existingDict =
+        await this.rulesPaymentV4Service.rulesCreatePayments(
+          createPaymentsV4Dto,
+        );
 
       // Criando pagamentos
       const payments = await Promise.all(
@@ -50,10 +52,10 @@ export class PaymentsV4Service {
               remittanceInformation: dto.remittanceInformation,
               authorisationFlow: dto?.authorisationFlow,
               qrCode: dto.qrCode,
-              ispbDebtor: existingConsent.account.participant,
+              ispbDebtor: existingDict.account.participant || null,
               issuerDebtor: '0001',
-              numberDebtor: existingConsent.account.accountNumber,
-              accountTypeDebtor: existingConsent.account.accountType,
+              numberDebtor: existingDict.account.accountNumber,
+              accountTypeDebtor: existingDict.account.accountType,
               ispbCreditor: dto.creditorAccount.ispb,
               issuerCreditor: dto.creditorAccount.issuer,
               numberCreditor: dto.creditorAccount.number,
@@ -76,7 +78,9 @@ export class PaymentsV4Service {
     } catch (error) {
       // Tratar erros gerais
       console.error('Erro ao cadastrar pagamento: ', error.message);
-      throw error;
+      const errando = this.mapToPaymentV4ResponseError(error);
+      console.log('imprimindo antes', typeof errando);
+      return errando;
     }
   }
 
@@ -87,13 +91,21 @@ export class PaymentsV4Service {
       });
 
       if (payments.length === 0) {
-        throw new NotFoundError(`No payments found for consent with ID ${id}`);
+        throw new NotFoundError(
+          `No payments found for consent with ID ${id}`,
+          `No payments found for consent with ID ${id}`,
+          `No payments found for consent with ID ${id}`,
+        );
       }
 
       return this.mapToPaymentV4ResponseDto(payments);
     } catch (error) {
       if (error.code === 'P2025') {
-        throw new NotFoundError(`Payment with ID ${id} not found`);
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+        );
       }
       throw error;
     }
@@ -108,7 +120,11 @@ export class PaymentsV4Service {
       return this.mapToPaymentV4ResponseDto(payment);
     } catch (error) {
       if (error.code === 'P2025') {
-        throw new NotFoundError(`Payment with ID ${id} not found`);
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+        );
       }
       throw error;
     }
@@ -256,5 +272,27 @@ export class PaymentsV4Service {
         requestDateTime: requestDateTime,
       },
     };
+  }
+
+  private mapToPaymentV4ResponseError(error): any {
+    console.log('Mapeando a saida de erro');
+
+    function dataFormat(params) {
+      return params.split('.')[0] + 'Z';
+    }
+
+    // Retornar a estrutura com o tipo esperado
+    const currentDate = new Date(); // Obtém a data atual
+    const requestDateTime = dataFormat(currentDate.toISOString());
+    const errors = {
+      code: error.code,
+      title: error.title,
+      detail: error.detail,
+    };
+    const meta = {
+      requestDateTime: requestDateTime,
+    };
+    throw new DefaultError([errors], meta);
+    // return responseError;
   }
 }

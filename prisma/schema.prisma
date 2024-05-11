@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -32,12 +32,12 @@ model Consents {
 }
 
 model Payments {
-  paymentId                 String    @id @default(uuid())
+  paymentId                 String      @id @default(auto()) @map("_id") @db.ObjectId
   consentId                 String
   pixId                     String
   endToEndId                String
-  creationDateTime          DateTime  @default(now())
-  statusUpdateDateTime      DateTime  @updatedAt
+  creationDateTime          DateTime    @default(now())
+  statusUpdateDateTime      DateTime    @updatedAt
   proxy                     String
   ibgeTownCode              String
   status                    String
@@ -57,11 +57,18 @@ model Payments {
   numberCreditor            String
   accountTypeCreditor       String
   qrCode                    String?
+  scheduleType              String? // Tipo de agendamento: single, daily, weekly, monthly, custom
+  scheduleStartDate         DateTime? // Data de início do agendamento
+  scheduleQuantity          Int? // Quantidade de pagamentos agendados
+  scheduleDayOfWeek         String? // Dia da semana para agendamentos semanais
+  scheduleDayOfMonth        Int? // Dia do mês para agendamentos mensais
+  scheduleCustomDates       DateTime[]? // Datas personalizadas para agendamentos personalizados
+  scheduleAdditionalInfo    String? // Informações adicionais sobre o agendamento
   code                      String?
   detail                    String?
   reason                    String?
   cancelledFrom             String?
-  cancelledAt               DateTime? @default(now())
+  cancelledAt               DateTime?   @default(now())
   cancelledByIdentification String?
   cancelledByRel            String?
 

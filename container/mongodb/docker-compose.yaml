@@ -15,8 +15,18 @@ services:
       - ./data:/data/postgresql
       - ./init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql
 
-  mongodb:
-    
+  mongo:
+    build: .
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: mongo
+      MONGO_INITDB_DATABASE: mongo
+      MONGO_REPLICA_HOST: localhost
+      MONGO_REPLICA_PORT: 27017
+    ports:
+      - '27017:27017'
+
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.1
     container_name: keycloak

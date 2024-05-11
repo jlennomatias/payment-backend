@@ -1,27 +1,23 @@
 import { Injectable } from '@nestjs/common';
-import { UnprocessableEntityError, NotFoundError } from 'src/erros';
+import { UnprocessableEntityError } from 'src/erros';
 import { CreatePaymentsV4Dto } from 'src/payments-v4/dto/create-payments-v4.dto';
 import { PixService } from 'src/pix/pix.service';
-import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class RulesPaymentV4Service {
-  constructor(
-    private prismaService: PrismaService,
-    private pixService: PixService,
-  ) {}
+  constructor(private pixService: PixService) {}
 
   async rulesCreatePayments(
     createPaymentsV4Dto: CreatePaymentsV4Dto,
-  ): Promise<boolean> {
+  ): Promise<any> {
     console.log('Iniciando as regras de negócios', createPaymentsV4Dto);
     try {
       await this.consentsAreEquals(createPaymentsV4Dto);
+      const dict = await this.dictExist(createPaymentsV4Dto.data[0].proxy);
 
-      // await this.pixService.getDict(consentId);
-      return true;
+      return dict;
     } catch (error) {
-      console.error('Erro ao aplicar as regras de negócios:', error);
+      console.error('Erro ao aplicar as regras de negócios:');
       throw error;
     }
   }
@@ -36,20 +32,53 @@ export class RulesPaymentV4Service {
       (item) => item.consentId === consentId,
     );
     if (!allConsentIdsAreEqual) {
-      throw new UnprocessableEntityError(`Consents are not equal`);
+      throw new UnprocessableEntityError(
+        `Consents are not equal`,
+        `Consents are not equal`,
+        `Consents are not equal`,
+      );
+    }
+    const proxy = createPaymentsV4Dto.data[0].proxy;
+    const allProxysAreEqual = createPaymentsV4Dto.data.every(
+      (item) => item.proxy === proxy,
+    );
+    if (!allProxysAreEqual) {
+      throw new UnprocessableEntityError(
+        `DETALHE_PAGAMENTO_INVALIDO`,
+        `Detalhe do pagamento invalido`,
+        `Proxy are not equal`,
+      );
     }
     return true;
   }
 
-  async consentsExist(consentId: string) {
-    console.log('Verificando se o consentimento existe');
+  async dictExist(proxy: string) {
+    console.log('Verificando se a chave pix existe');
 
-    const existingConsent = await this.prismaService.consents.findUnique({
-      where: { consentId },
-    });
-    if (!existingConsent) {
-      throw new NotFoundError(`Consent with ID ${consentId} not found`);
+    const pixData = await this.pixService.getDict(proxy);
+
+    if (!pixData) {
+      throw new UnprocessableEntityError(
+        `DETALHE_PAGAMENTO_INVALIDO`,
+        `Detalhe do pagamento invalido`,
+        `Proxy with ID ${proxy} not found`,
+      );
     }
-    return existingConsent;
+    return pixData;
+  }
+
+  async scheduleSingle(proxy: string) {
+    console.log('Verificando se a chave pix existe');
+
+    const pixData = await this.pixService.getDict(proxy);
+
+    if (!pixData) {
+      throw new UnprocessableEntityError(
+        `DETALHE_PAGAMENTO_INVALIDO`,
+        `Detalhe do pagamento invalido`,
+        `Proxy with ID ${proxy} not found`,
+      );
+    }
+    return pixData;
   }
 }

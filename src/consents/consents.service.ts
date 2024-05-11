@@ -32,7 +32,11 @@ export class ConsentsService {
       return this.mapToConsentResponseDto(consent);
     } catch (error) {
       if (error.code === 'P2002') {
-        throw new UnprocessableEntityError(`The consent already exists.`);
+        throw new UnprocessableEntityError(
+          `The consent already exists.`,
+          `The consent already exists.`,
+          `The consent already exists.`,
+        );
       }
       throw error;
     }
@@ -79,7 +83,11 @@ export class ConsentsService {
       return this.mapToConsentResponseDto(consent);
     } catch (error) {
       if (error.code === 'P2025') {
-        throw new NotFoundError(`Consent with ID ${id} not found`);
+        throw new NotFoundError(
+          `Consent with ID ${id} not found`,
+          `Consent with ID ${id} not found`,
+          `Consent with ID ${id} not found`,
+        );
       }
       throw error;
     }

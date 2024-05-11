@@ -20,6 +20,7 @@ export class WebhookPaymentsService {
     try {
       const newValue = await this.fetchData(pixId); // Obtém os dados atuais
 
+      console.log(`- Validando status atual: ${newValue}`);
       console.log(
         `- Validando se houve alteração de status do pix. status: ${this.hasValueChanged(newValue)}`,
       );
@@ -30,6 +31,7 @@ export class WebhookPaymentsService {
         console.log(`- Atualizando o status do paymentId ${paymentId}`);
         await this.updateData(newValue, paymentId); // Atualiza a base de dados se o status não for "ACSC"
       }
+      return;
     } catch (error) {
       console.error('Erro ao executar a rotina: ', error);
     }

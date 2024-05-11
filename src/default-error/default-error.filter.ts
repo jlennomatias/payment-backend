@@ -8,8 +8,8 @@ export class DefaultErrorFilter implements ExceptionFilter {
     const response = ctx.getResponse();
 
     response.status(422).json({
-      statusCode: 422,
-      message: exception.message,
+      errors: exception.errors,
+      meta: exception.meta,
     });
   }
 }

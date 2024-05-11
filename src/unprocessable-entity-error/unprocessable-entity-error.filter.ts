@@ -8,8 +8,9 @@ export class NotEqualErrorFilter implements ExceptionFilter {
     const response = ctx.getResponse();
 
     response.status(422).json({
-      statusCode: 422,
-      message: exception.message,
+      code: exception.code,
+      title: exception.title,
+      detail: exception.detail,
     });
   }
 }
