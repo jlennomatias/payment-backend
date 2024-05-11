@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ConsentsModule } from './consents/consents.module';
 import { PaymentsV4Module } from './payments-v4/payments-v4.module';
 import { AutomaticPaymentsV1Module } from './automatic-payments-v1/automatic-payments-v1.module';
 import { RecurringConsentsModule } from './recurring-consents/recurring-consents.module';
@@ -10,7 +9,6 @@ import { WebhookPaymentsModule } from './webhook-payments/webhook-payments.modul
 
 @Module({
   imports: [
-    ConsentsModule,
     PaymentsV4Module,
     AutomaticPaymentsV1Module,
     RecurringConsentsModule,

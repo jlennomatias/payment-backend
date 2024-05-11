@@ -51,7 +51,7 @@ export class WebhookPaymentsService {
   async updateData(newValue: string, paymentId: string): Promise<void> {
     // Lógica para fazer a requisição PUT para atualizar os dados na base
     console.log(`-- Alterando o status para: ${newValue}`);
-    await this.prismaService.payments.update({
+    await this.prismaService.payment.update({
       where: { paymentId: paymentId },
       data: {
         status: 'ACSC',

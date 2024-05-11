@@ -13,89 +13,134 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Consents {
-  consentId            String   @id
-  cpf                  String
-  cnpj                 String?
-  creationDateTime     DateTime @default(now())
-  statusUpdateDateTime DateTime @updatedAt
-  ispbDebtor           String
-  issuerDebtor         String
-  numberDebtor         String
-  accountTypeDebtor    String
-  ispbCreditor         String?
-  issuerCreditor       String?
-  numberCreditor       String?
-  accountTypeCreditor  String?
-
-  @@map("consents")
-}
-
-model Payments {
-  paymentId                 String      @id @default(auto()) @map("_id") @db.ObjectId
+model Payment {
+  paymentId                 String           @id @default(auto()) @map("_id") @db.ObjectId
   consentId                 String
   pixId                     String
   endToEndId                String
-  creationDateTime          DateTime    @default(now())
-  statusUpdateDateTime      DateTime    @updatedAt
+  creationDateTime          DateTime         @default(now())
+  statusUpdateDateTime      DateTime         @updatedAt
   proxy                     String
   ibgeTownCode              String
   status                    String
   localInstrument           String
   cnpjInitiator             String
-  amount                    String
-  currency                  String
   transactionIdentification String?
   remittanceInformation     String
   authorisationFlow         String?
-  ispbDebtor                String
-  issuerDebtor              String
-  numberDebtor              String
-  accountTypeDebtor         String
-  ispbCreditor              String
-  issuerCreditor            String
-  numberCreditor            String
-  accountTypeCreditor       String
   qrCode                    String?
-  scheduleType              String? // Tipo de agendamento: single, daily, weekly, monthly, custom
-  scheduleStartDate         DateTime? // Data de início do agendamento
-  scheduleQuantity          Int? // Quantidade de pagamentos agendados
-  scheduleDayOfWeek         String? // Dia da semana para agendamentos semanais
-  scheduleDayOfMonth        Int? // Dia do mês para agendamentos mensais
-  scheduleCustomDates       DateTime[]? // Datas personalizadas para agendamentos personalizados
-  scheduleAdditionalInfo    String? // Informações adicionais sobre o agendamento
   code                      String?
   detail                    String?
   reason                    String?
-  cancelledFrom             String?
-  cancelledAt               DateTime?   @default(now())
-  cancelledByIdentification String?
-  cancelledByRel            String?
+  payment                   PaymentDetail?
+  creditorAccount           CreditorAccount?
+  debtorAccount             DebtorAccount?
+  cancellation              Cancellation?
 
-  @@map("payments")
+  @@map("payment")
 }
 
-model RecurringConsents {
-  recurringConsentId   String   @id
-  cpf                  String
-  cnpj                 String?
-  creationDateTime     DateTime @default(now())
-  statusUpdateDateTime DateTime @updatedAt
-  proxy                String
-  ispbDebtor           String
-  issuerDebtor         String
-  numberDebtor         String
-  accountTypeDebtor    String
-  ispbCreditor         String?
-  issuerCreditor       String?
-  numberCreditor       String?
-  accountTypeCreditor  String?
+model CreditorAccount {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  ispb        String
+  issuer      String
+  number      String
+  accountType String
+  Payment     Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
+  paymentId   String  @unique @db.ObjectId
 
-  @@map("recurringConsents")
+  @@map("creditor_accounts")
+}
+
+model DebtorAccount {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  ispb        String
+  issuer      String
+  number      String
+  accountType String
+  Payment     Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
+  paymentId   String  @unique @db.ObjectId
+
+  @@map("debtor_accounts")
+}
+
+model Cancellation {
+  id                        String   @id @default(auto()) @map("_id") @db.ObjectId
+  reason                    String
+  cancelledFrom             String
+  cancelledAt               DateTime
+  cancelledByIdentification String
+  cancelledByRel            String
+  Payment                   Payment  @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
+  paymentId                 String   @unique @db.ObjectId
+
+  @@map("cancellations")
+}
+
+model PaymentDetail {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  amount    String
+  currency  String
+  Payment   Payment   @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
+  paymentId String    @unique @db.ObjectId
+  schedule  Schedule?
+}
+
+model Schedule {
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  single  Single?
+  daily   Daily?
+  weekly  Weekly?
+  monthly Monthly?
+  custom  Custom?
+
+  paymentDetail   PaymentDetail? @relation(fields: [paymentDetailId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  paymentDetailId String?        @unique @db.ObjectId
+}
+
+model Single {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  date       String
+  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  scheduleId String?   @unique @db.ObjectId
+}
+
+model Daily {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  startDate  String
+  quantity   Int
+  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  scheduleId String?   @unique @db.ObjectId
+}
+
+model Weekly {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  dayOfWeek  String
+  startDate  String
+  quantity   Int
+  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  scheduleId String?   @unique @db.ObjectId
+}
+
+model Monthly {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  dayOfMonth Int
+  startDate  String
+  quantity   Int
+  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  scheduleId String?   @unique @db.ObjectId
+}
+
+model Custom {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  additionalInformation String
+  dates                 String[]
+  schedule              Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  scheduleId            String?   @unique @db.ObjectId
 }
 
 model AutomaticPayments {
-  recurringPaymentId                    String    @id @default(uuid())
+  recurringPaymentId                    String    @id @default(auto()) @map("_id") @db.ObjectId
   recurringConsentId                    String    @unique
   endToEndId                            String
   date                                  String

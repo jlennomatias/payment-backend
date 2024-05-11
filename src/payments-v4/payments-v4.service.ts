@@ -36,7 +36,7 @@ export class PaymentsV4Service {
           const pixId = pixData.transactionId.toString();
           console.log('- Criando pagamento');
 
-          const payment = await this.prismaService.payments.create({
+          const payment = await this.prismaService.payment.create({
             data: {
               consentId: dto.consentId,
               pixId: pixId,
@@ -46,20 +46,37 @@ export class PaymentsV4Service {
               status: 'RCVD',
               localInstrument: dto.localInstrument,
               cnpjInitiator: dto.cnpjInitiator,
-              amount: dto.payment.amount,
-              currency: dto.payment.currency,
+              payment: {
+                create: {
+                  amount: dto.payment.amount,
+                  currency: dto.payment.currency,
+                  schedule: {
+                    create: {
+                      ...dto.payment.schedule,
+                    },
+                  },
+                },
+              },
               transactionIdentification: dto?.transactionIdentification,
               remittanceInformation: dto.remittanceInformation,
               authorisationFlow: dto?.authorisationFlow,
               qrCode: dto.qrCode,
-              ispbDebtor: existingDict.account.participant || null,
-              issuerDebtor: '0001',
-              numberDebtor: existingDict.account.accountNumber,
-              accountTypeDebtor: existingDict.account.accountType,
-              ispbCreditor: dto.creditorAccount.ispb,
-              issuerCreditor: dto.creditorAccount.issuer,
-              numberCreditor: dto.creditorAccount.number,
-              accountTypeCreditor: dto.creditorAccount.accountType,
+              debtorAccount: {
+                create: {
+                  ispb: existingDict.account.participant || null,
+                  issuer: '0001',
+                  number: existingDict.account.accountNumber,
+                  accountType: existingDict.account.accountType,
+                },
+              },
+              creditorAccount: {
+                create: {
+                  ispb: dto.creditorAccount.ispb,
+                  issuer: dto.creditorAccount.issuer,
+                  number: dto.creditorAccount.number,
+                  accountType: dto.creditorAccount.accountType,
+                },
+              },
             },
           });
 
@@ -86,7 +103,7 @@ export class PaymentsV4Service {
 
   async findAll(id: string) {
     try {
-      const payments = await this.prismaService.payments.findMany({
+      const payments = await this.prismaService.payment.findMany({
         where: { consentId: id },
       });
 
@@ -113,7 +130,7 @@ export class PaymentsV4Service {
 
   async findOne(id: string) {
     try {
-      const payment = await this.prismaService.payments.findUniqueOrThrow({
+      const payment = await this.prismaService.payment.findUniqueOrThrow({
         where: { paymentId: id },
       });
 
@@ -131,8 +148,8 @@ export class PaymentsV4Service {
   }
 
   async update(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
-    const { data } = cancelPaymentsV4Dto;
-    const payment = await this.prismaService.payments.update({
+    const data = cancelPaymentsV4Dto;
+    const payment = await this.prismaService.payment.update({
       where: { paymentId: id },
       data: {
         ...data,
@@ -143,7 +160,7 @@ export class PaymentsV4Service {
 
   async updateAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     const { data } = cancelPaymentsV4Dto;
-    const payment = await this.prismaService.payments.updateMany({
+    const payment = await this.prismaService.payment.updateMany({
       where: { consentId: id },
       data: {
         ...data,
