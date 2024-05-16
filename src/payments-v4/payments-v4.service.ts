@@ -31,30 +31,36 @@ export class PaymentsV4Service {
       const payments = await Promise.all(
         createPaymentsV4Dto.data.map(async (dto) => {
           // Cria o pix
-          const pixData = await this.pixService.createPix(dto);
 
-          const pixId = pixData.transactionId.toString();
           console.log('- Criando pagamento');
+
+          console.log('-Validando datas');
+          const datePayment = dto.endToEndId
+            .substring(9, 17)
+            .replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+
+          const currentDate = new Date().toISOString(); // Obtém a data atual
+          const dataAtual = currentDate.substring(0, 10);
+
+          console.log('agora: ', dataAtual, datePayment);
+          dto.status = dataAtual > datePayment ? 'RCVD' : 'SCHD';
+          dto.date = datePayment;
 
           const payment = await this.prismaService.payment.create({
             data: {
               consentId: dto.consentId,
-              pixId: pixId,
+              pixId: '',
               proxy: dto.proxy,
               endToEndId: dto.endToEndId,
               ibgeTownCode: dto.ibgeTownCode,
-              status: 'RCVD',
+              status: dto.status,
+              date: dto.date,
               localInstrument: dto.localInstrument,
               cnpjInitiator: dto.cnpjInitiator,
               payment: {
                 create: {
                   amount: dto.payment.amount,
                   currency: dto.payment.currency,
-                  schedule: {
-                    create: {
-                      ...dto.payment.schedule,
-                    },
-                  },
                 },
               },
               transactionIdentification: dto?.transactionIdentification,
@@ -78,9 +84,37 @@ export class PaymentsV4Service {
                 },
               },
             },
+            include: {
+              payment: {
+                select: {
+                  amount: true,
+                  currency: true,
+                },
+              },
+              debtorAccount: {
+                select: {
+                  ispb: true,
+                  issuer: true,
+                  number: true,
+                  accountType: true,
+                },
+              },
+              creditorAccount: {
+                select: {
+                  ispb: true,
+                  issuer: true,
+                  number: true,
+                  accountType: true,
+                },
+              },
+            },
           });
 
+          // Criando o Pix
+          const pixData = await this.pixService.createPix(dto);
+
           // Acionando o webhook
+
           this.webhookPaymentsService.fetchDataAndUpdate(
             pixData.transactionId,
             payment.paymentId,
@@ -132,6 +166,39 @@ export class PaymentsV4Service {
     try {
       const payment = await this.prismaService.payment.findUniqueOrThrow({
         where: { paymentId: id },
+        include: {
+          payment: {
+            select: {
+              amount: true,
+              currency: true,
+            },
+          },
+          debtorAccount: {
+            select: {
+              ispb: true,
+              issuer: true,
+              number: true,
+              accountType: true,
+            },
+          },
+          creditorAccount: {
+            select: {
+              ispb: true,
+              issuer: true,
+              number: true,
+              accountType: true,
+            },
+          },
+          cancellation: {
+            select: {
+              reason: true,
+              cancelledFrom: true,
+              cancelledAt: true,
+              cancelledByIdentification: true,
+              cancelledByRel: true,
+            },
+          },
+        },
       });
 
       return this.mapToPaymentV4ResponseDto(payment);
@@ -148,25 +215,60 @@ export class PaymentsV4Service {
   }
 
   async update(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
-    const data = cancelPaymentsV4Dto;
-    const payment = await this.prismaService.payment.update({
+    const paymentUpdate = await this.prismaService.payment.update({
       where: { paymentId: id },
       data: {
-        ...data,
+        status: cancelPaymentsV4Dto.data.status,
+        cancellation: {
+          create: {
+            reason: 'CANCELADO_AGENDAMENTO',
+            cancelledFrom: 'INICIADORA',
+            cancelledByIdentification:
+              cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                .identification,
+            cancelledByRel:
+              cancelPaymentsV4Dto.data.cancellation.cancelledBy.document.rel,
+          },
+        },
       },
     });
+    console.log(paymentUpdate);
+    const payment = this.findOne(id);
     return this.mapToPaymentV4ResponseDto(payment);
   }
 
   async updateAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
-    const { data } = cancelPaymentsV4Dto;
-    const payment = await this.prismaService.payment.updateMany({
+    const paymentsUpdate = await this.prismaService.payment.findMany({
       where: { consentId: id },
-      data: {
-        ...data,
-      },
     });
-    return this.mapToPaymentV4ResponseDto(payment);
+
+    const updatedPayments = [];
+    for (const payment of paymentsUpdate) {
+      const updatedPayment = await this.prismaService.payment.update({
+        where: { paymentId: payment.paymentId },
+        data: {
+          status: cancelPaymentsV4Dto.data.status,
+          cancellation: {
+            create: {
+              reason: 'CANCELADO_AGENDAMENTO',
+              cancelledFrom: 'INICIADORA',
+              cancelledByIdentification:
+                cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                  .identification,
+              cancelledByRel:
+                cancelPaymentsV4Dto.data.cancellation.cancelledBy.document.rel,
+            },
+          },
+        },
+      });
+
+      updatedPayments.push(updatedPayment);
+    }
+
+    const payments = await this.prismaService.payment.findMany({
+      where: { consentId: id },
+    });
+    return this.mapToPaymentV4ResponseDto(payments);
   }
 
   private mapToPaymentV4ResponseDto(payment): ResponsePaymentsV4Dto {
@@ -175,6 +277,8 @@ export class PaymentsV4Service {
       return params.split('.')[0] + 'Z';
     }
 
+    console.log('- Mapeando a response');
+
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
       // Mapear cada objeto da lista para o formato desejado
@@ -182,18 +286,8 @@ export class PaymentsV4Service {
         paymentId: item.paymentId,
         consentId: item.consentId,
         ...(item.qrcode && { qrcode: item.qrcode }), // Torna  opcional
-        debtorAccount: {
-          ispb: item.ispbDebtor,
-          issuer: item.issuerDebtor,
-          number: item.numberDebtor,
-          accountType: item.accountTypeDebtor,
-        },
-        creditorAccount: {
-          ispb: item.ispbCreditor,
-          issuer: item.issuerCreditor,
-          number: item.numberCreditor,
-          accountType: item.accountTypeCreditor,
-        },
+        debtorAccount: item.debtorAccount,
+        creditorAccount: item.creditorAccount,
         endToEndId: item.endToEndId,
         creationDateTime: dataFormat(
           new Date(item.creationDateTime).toISOString(),
@@ -213,8 +307,8 @@ export class PaymentsV4Service {
         localInstrument: item.localInstrument,
         cnpjInitiator: item.cnpjInitiator,
         payment: {
-          amount: item.amount,
-          currency: item.currency,
+          amount: item.payment.amount,
+          currency: item.payment.currency,
         },
         ...(item.transactionIdentification && {
           transactionIdentification: item.transactionIdentification,
@@ -231,18 +325,8 @@ export class PaymentsV4Service {
           paymentId: payment.paymentId,
           consentId: payment.consentId,
           ...(payment.qrcode && { qrcode: payment.qrcode }), // Torna o qrcode opcional
-          debtorAccount: {
-            ispb: payment.ispbDebtor,
-            issuer: payment.issuerDebtor,
-            number: payment.numberDebtor,
-            accountType: payment.accountTypeDebtor,
-          },
-          creditorAccount: {
-            ispb: payment.ispbCreditor,
-            issuer: payment.issuerCreditor,
-            number: payment.numberCreditor,
-            accountType: payment.accountTypeCreditor,
-          },
+          debtorAccount: payment.debtorAccount,
+          creditorAccount: payment.creditorAccount,
           endToEndId: payment.endToEndId,
           creationDateTime: dataFormat(
             new Date(payment.creationDateTime).toISOString(),
@@ -262,8 +346,8 @@ export class PaymentsV4Service {
           localInstrument: payment.localInstrument,
           cnpjInitiator: payment.cnpjInitiator,
           payment: {
-            amount: payment.amount,
-            currency: payment.currency,
+            amount: payment.payment.amount,
+            currency: payment.payment.currency,
           },
           ...(payment.transactionIdentification && {
             transactionIdentification: payment.transactionIdentification,

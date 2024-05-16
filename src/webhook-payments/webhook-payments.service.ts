@@ -19,6 +19,7 @@ export class WebhookPaymentsService {
     );
     try {
       const newValue = await this.fetchData(pixId); // Obtém os dados atuais
+      await this.updatePixId(pixId, paymentId); // Obtém os dados atuais
 
       console.log(`- Validando status atual: ${newValue}`);
       console.log(
@@ -71,6 +72,19 @@ export class WebhookPaymentsService {
     this.pixStatus = newValue; // Atualiza o último valor recebido
 
     console.log(`-- Finalizando o webhook com status ${this.pixStatus} `);
+  }
+
+  async updatePixId(pixId: string, paymentId: string): Promise<void> {
+    // Lógica para fazer a requisição PUT para atualizar os dados na base
+    console.log(`- Alterando o pixId`);
+    await this.prismaService.payment.update({
+      where: { paymentId: paymentId },
+      data: {
+        pixId: pixId.toString(),
+      },
+    });
+
+    console.log(`-- Finalizando o webhook com status`);
   }
 
   hasValueChanged(newValue: any): boolean {

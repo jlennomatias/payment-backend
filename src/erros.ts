@@ -1,5 +1,9 @@
 export class NotFoundError extends Error {
-  constructor(code: string, title: string, detail: string) {
+  constructor(
+    public code: string,
+    public title: string,
+    public detail: string,
+  ) {
     super(`[${code}] ${title}: ${detail}`);
     this.name = 'NotFoundError';
   }

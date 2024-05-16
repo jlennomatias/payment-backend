@@ -3,65 +3,8 @@ import {
   IsString,
   IsOptional,
   ValidateNested,
-  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-
-class SingleScheduleDto {
-  @IsNotEmpty()
-  @IsString()
-  date: string;
-}
-
-class DailyScheduleDto {
-  @IsNotEmpty()
-  @IsString()
-  startDate: string;
-
-  @IsNotEmpty()
-  quantity: number;
-}
-
-class WeeklyScheduleDto {
-  @IsNotEmpty()
-  @IsString()
-  dayOfWeek: string;
-
-  @IsNotEmpty()
-  @IsString()
-  startDate: string;
-
-  @IsNotEmpty()
-  quantity: number;
-}
-
-class MonthlyScheduleDto {
-  @IsNotEmpty()
-  dayOfMonth: number;
-
-  @IsNotEmpty()
-  @IsString()
-  startDate: string;
-
-  @IsNotEmpty()
-  quantity: number;
-}
-
-class CustomScheduleDto {
-  @IsNotEmpty()
-  dates: string[];
-
-  @IsNotEmpty()
-  @IsString()
-  additionalInformation: string;
-}
-
-type ScheduleDto =
-  | SingleScheduleDto
-  | DailyScheduleDto
-  | WeeklyScheduleDto
-  | MonthlyScheduleDto
-  | CustomScheduleDto;
 
 class PaymentDto {
   @IsNotEmpty()
@@ -71,10 +14,6 @@ class PaymentDto {
   @IsNotEmpty()
   @IsString()
   currency: string;
-
-  @IsObject()
-  @ValidateNested()
-  schedule: ScheduleDto;
 }
 
 class CreditorAccountDto {
@@ -136,6 +75,9 @@ class DataDto {
   ibgeTownCode: string;
 
   authorisationFlow?: string;
+
+  status?: string;
+  date?: string;
 
   @IsNotEmpty()
   @IsString()

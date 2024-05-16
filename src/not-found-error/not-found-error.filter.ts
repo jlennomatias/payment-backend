@@ -8,9 +8,9 @@ export class NotFoundErrorFilter implements ExceptionFilter {
     const response = ctx.getResponse();
 
     response.status(404).json({
-      code: exception.message,
-      title: exception.message,
-      message: exception.message,
+      code: exception.code,
+      title: exception.title,
+      detail: exception.detail,
     });
   }
 }

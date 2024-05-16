@@ -23,6 +23,7 @@ model Payment {
   proxy                     String
   ibgeTownCode              String
   status                    String
+  date                      String
   localInstrument           String
   cnpjInitiator             String
   transactionIdentification String?
@@ -68,7 +69,7 @@ model Cancellation {
   id                        String   @id @default(auto()) @map("_id") @db.ObjectId
   reason                    String
   cancelledFrom             String
-  cancelledAt               DateTime
+  cancelledAt               DateTime @default(now())
   cancelledByIdentification String
   cancelledByRel            String
   Payment                   Payment  @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
@@ -78,65 +79,11 @@ model Cancellation {
 }
 
 model PaymentDetail {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
   amount    String
   currency  String
-  Payment   Payment   @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
-  paymentId String    @unique @db.ObjectId
-  schedule  Schedule?
-}
-
-model Schedule {
-  id      String   @id @default(auto()) @map("_id") @db.ObjectId
-  single  Single?
-  daily   Daily?
-  weekly  Weekly?
-  monthly Monthly?
-  custom  Custom?
-
-  paymentDetail   PaymentDetail? @relation(fields: [paymentDetailId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  paymentDetailId String?        @unique @db.ObjectId
-}
-
-model Single {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  date       String
-  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  scheduleId String?   @unique @db.ObjectId
-}
-
-model Daily {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  startDate  String
-  quantity   Int
-  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  scheduleId String?   @unique @db.ObjectId
-}
-
-model Weekly {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  dayOfWeek  String
-  startDate  String
-  quantity   Int
-  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  scheduleId String?   @unique @db.ObjectId
-}
-
-model Monthly {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
-  dayOfMonth Int
-  startDate  String
-  quantity   Int
-  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  scheduleId String?   @unique @db.ObjectId
-}
-
-model Custom {
-  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
-  additionalInformation String
-  dates                 String[]
-  schedule              Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  scheduleId            String?   @unique @db.ObjectId
+  Payment   Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
+  paymentId String  @unique @db.ObjectId
 }
 
 model AutomaticPayments {
