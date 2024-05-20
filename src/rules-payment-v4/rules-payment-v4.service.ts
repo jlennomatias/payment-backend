@@ -33,8 +33,8 @@ export class RulesPaymentV4Service {
     );
     if (!allConsentIdsAreEqual) {
       throw new UnprocessableEntityError(
-        `Consents are not equal`,
-        `Consents are not equal`,
+        `DETALHE_PAGAMENTO_INVALIDO`,
+        `Detalhe do pagamento invalido`,
         `Consents are not equal`,
       );
     }
@@ -80,5 +80,38 @@ export class RulesPaymentV4Service {
       );
     }
     return pixData;
+  }
+
+  async rulesCancelPayments(cancelPayments: any): Promise<any> {
+    console.log('Iniciando as regras de negócios');
+    try {
+      const response = await this.cancelPayment(cancelPayments);
+
+      return response;
+    } catch (error) {
+      console.error('Erro ao aplicar as regras de negócios:');
+      throw error;
+    }
+  }
+
+  async cancelPayment(payment: any) {
+    console.log('Verificando o status do consent');
+    let reasonCancel = '';
+    if (payment.status === 'PDNG') {
+      reasonCancel = 'CANCELADO_PENDENCIA';
+    } else if (payment.status === 'SCHD') {
+      reasonCancel = 'CANCELADO_AGENDAMENTO';
+    } else if (payment.status === 'PATC') {
+      reasonCancel = 'CANCELADO_MULTIPLAS_ALCADAS';
+    } else {
+      console.log('chamando o thorw');
+
+      throw new UnprocessableEntityError(
+        `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
+        `Pagamento não permite cancelamento`,
+        `Pagamento possui o status diferente de SCHD/PDNG/PATC`,
+      );
+    }
+    return reasonCancel;
   }
 }

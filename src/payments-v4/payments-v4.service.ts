@@ -3,7 +3,11 @@ import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
 import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DefaultError, NotFoundError } from 'src/erros';
+import {
+  DefaultError,
+  NotFoundError,
+  UnprocessableEntityError,
+} from 'src/erros';
 import { PixService } from 'src/pix/pix.service';
 import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.service';
 import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
@@ -34,7 +38,7 @@ export class PaymentsV4Service {
 
           console.log('- Criando pagamento');
 
-          console.log('-Validando datas');
+          console.log('- Validando datas');
           const datePayment = dto.endToEndId
             .substring(9, 17)
             .replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
@@ -43,7 +47,7 @@ export class PaymentsV4Service {
           const dataAtual = currentDate.substring(0, 10);
 
           console.log('agora: ', dataAtual, datePayment);
-          dto.status = dataAtual > datePayment ? 'RCVD' : 'SCHD';
+          dto.status = dataAtual >= datePayment ? 'RCVD' : 'SCHD';
           dto.date = datePayment;
 
           const payment = await this.prismaService.payment.create({
@@ -129,9 +133,7 @@ export class PaymentsV4Service {
     } catch (error) {
       // Tratar erros gerais
       console.error('Erro ao cadastrar pagamento: ', error.message);
-      const errando = this.mapToPaymentV4ResponseError(error);
-      console.log('imprimindo antes', typeof errando);
-      return errando;
+      return this.mapToPaymentV4ResponseError(error);
     }
   }
 
@@ -139,6 +141,39 @@ export class PaymentsV4Service {
     try {
       const payments = await this.prismaService.payment.findMany({
         where: { consentId: id },
+        include: {
+          payment: {
+            select: {
+              amount: true,
+              currency: true,
+            },
+          },
+          debtorAccount: {
+            select: {
+              ispb: true,
+              issuer: true,
+              number: true,
+              accountType: true,
+            },
+          },
+          creditorAccount: {
+            select: {
+              ispb: true,
+              issuer: true,
+              number: true,
+              accountType: true,
+            },
+          },
+          cancellation: {
+            select: {
+              reason: true,
+              cancelledFrom: true,
+              cancelledAt: true,
+              cancelledByIdentification: true,
+              cancelledByRel: true,
+            },
+          },
+        },
       });
 
       if (payments.length === 0) {
@@ -215,43 +250,25 @@ export class PaymentsV4Service {
   }
 
   async update(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
-    const paymentUpdate = await this.prismaService.payment.update({
-      where: { paymentId: id },
-      data: {
-        status: cancelPaymentsV4Dto.data.status,
-        cancellation: {
-          create: {
-            reason: 'CANCELADO_AGENDAMENTO',
-            cancelledFrom: 'INICIADORA',
-            cancelledByIdentification:
-              cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
-                .identification,
-            cancelledByRel:
-              cancelPaymentsV4Dto.data.cancellation.cancelledBy.document.rel,
-          },
-        },
-      },
-    });
-    console.log(paymentUpdate);
-    const payment = this.findOne(id);
-    return this.mapToPaymentV4ResponseDto(payment);
-  }
+    try {
+      console.log(`Iniciando o cancelamento do pagamento: ${id}`);
 
-  async updateAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
-    const paymentsUpdate = await this.prismaService.payment.findMany({
-      where: { consentId: id },
-    });
+      const payment = await this.prismaService.payment.findUnique({
+        where: { paymentId: id },
+      });
 
-    const updatedPayments = [];
-    for (const payment of paymentsUpdate) {
-      const updatedPayment = await this.prismaService.payment.update({
-        where: { paymentId: payment.paymentId },
+      const reasonCancel =
+        await this.rulesPaymentV4Service.rulesCancelPayments(payment);
+
+      await this.prismaService.payment.update({
+        where: { paymentId: id },
         data: {
           status: cancelPaymentsV4Dto.data.status,
           cancellation: {
             create: {
-              reason: 'CANCELADO_AGENDAMENTO',
-              cancelledFrom: 'INICIADORA',
+              reason: reasonCancel,
+              cancelledFrom:
+                cancelPaymentsV4Dto.data.cancelledFrom || 'INICIADORA',
               cancelledByIdentification:
                 cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
                   .identification,
@@ -262,18 +279,88 @@ export class PaymentsV4Service {
         },
       });
 
-      updatedPayments.push(updatedPayment);
-    }
+      console.log('alterado o status:');
 
-    const payments = await this.prismaService.payment.findMany({
-      where: { consentId: id },
-    });
-    return this.mapToPaymentV4ResponseDto(payments);
+      return await this.findOne(id);
+    } catch (error) {
+      console.log(error);
+      if (error.code === 'P2014') {
+        throw new UnprocessableEntityError(
+          `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
+          `Pagamento não permite cancelamento`,
+          `Pagamento ja consta com status cancelado`,
+        );
+      }
+
+      return this.mapToPaymentV4ResponseError(error);
+    }
+  }
+
+  async updateAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
+    try {
+      const paymentsUpdate = await this.prismaService.payment.findMany({
+        where: { consentId: id },
+      });
+
+      const updatedPayments = [];
+      for (const payment of paymentsUpdate) {
+        console.log(`Cancelando o pagamento ${payment.paymentId}`);
+
+        const reasonCancel =
+          await this.rulesPaymentV4Service.rulesCancelPayments(payment);
+        try {
+          const updatedPayment = await this.prismaService.payment.update({
+            where: { paymentId: payment.paymentId },
+            data: {
+              status: cancelPaymentsV4Dto.data.status,
+              cancellation: {
+                create: {
+                  reason: reasonCancel,
+                  cancelledFrom: 'INICIADORA',
+                  cancelledByIdentification:
+                    cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                      .identification,
+                  cancelledByRel:
+                    cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                      .rel,
+                },
+              },
+            },
+          });
+          updatedPayments.push(updatedPayment);
+        } catch (error) {
+          console.log(error.message);
+        }
+      }
+
+      const payments = await this.prismaService.payment.findMany({
+        where: { consentId: id },
+        include: {
+          cancellation: {
+            select: {
+              cancelledAt: true,
+            },
+          },
+        },
+      });
+
+      return this.mapToCancellationPaymentV4ResponseDto(payments);
+    } catch (error) {
+      console.log(error);
+      if (error.code === 'P2014') {
+        throw new UnprocessableEntityError(
+          `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
+          `Pagamento não permite cancelamento`,
+          `Pagamento ja consta com status cancelado`,
+        );
+      }
+      throw error;
+    }
   }
 
   private mapToPaymentV4ResponseDto(payment): ResponsePaymentsV4Dto {
     let data;
-    function dataFormat(params) {
+    function dataFormat(params: any) {
       return params.split('.')[0] + 'Z';
     }
 
@@ -281,7 +368,8 @@ export class PaymentsV4Service {
 
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
-      // Mapear cada objeto da lista para o formato desejado
+      console.log('Transformar cada objeto da lista para o formato desejado');
+
       data = payment.map((item) => ({
         paymentId: item.paymentId,
         consentId: item.consentId,
@@ -317,47 +405,121 @@ export class PaymentsV4Service {
         ...(item.authorisationFlow && {
           authorisationFlow: item.authorisationFlow,
         }), // Torna opcional
+        ...(item.cancellation && {
+          cancellation: {
+            reason: item.cancellation.reason,
+            cancelledFrom: item.cancellation.cancelledFrom,
+            cancelledAt: dataFormat(
+              new Date(item.cancellation.cancelledAt).toISOString(),
+            ),
+            cancelledBy: {
+              document: {
+                identification: item.cancellation.cancelledByIdentification,
+                rel: item.cancellation.cancelledByRel,
+              },
+            },
+          },
+        }), // Torna opcional
       }));
     } else {
-      // Transformar o objeto único para o formato desejado
-      data = [
-        {
-          paymentId: payment.paymentId,
-          consentId: payment.consentId,
-          ...(payment.qrcode && { qrcode: payment.qrcode }), // Torna o qrcode opcional
-          debtorAccount: payment.debtorAccount,
-          creditorAccount: payment.creditorAccount,
-          endToEndId: payment.endToEndId,
-          creationDateTime: dataFormat(
-            new Date(payment.creationDateTime).toISOString(),
-          ),
-          statusUpdateDateTime: dataFormat(
-            new Date(payment.statusUpdateDateTime).toISOString(),
-          ),
-          proxy: payment.proxy,
-          ibgeTownCode: payment.ibgeTownCode,
-          status: payment.status,
-          ...(payment.code && {
-            rejectionReason: {
-              code: payment.code,
-              detail: payment.detail,
-            },
-          }),
-          localInstrument: payment.localInstrument,
-          cnpjInitiator: payment.cnpjInitiator,
-          payment: {
-            amount: payment.payment.amount,
-            currency: payment.payment.currency,
+      console.log('Transformar o objeto único para o formato desejado');
+
+      data = {
+        paymentId: payment.paymentId,
+        consentId: payment.consentId,
+        ...(payment.qrcode && { qrcode: payment.qrcode }), // Torna o qrcode opcional
+        debtorAccount: payment.debtorAccount,
+        creditorAccount: payment.creditorAccount,
+        endToEndId: payment.endToEndId,
+        creationDateTime: dataFormat(
+          new Date(payment.creationDateTime).toISOString(),
+        ),
+        statusUpdateDateTime: dataFormat(
+          new Date(payment.statusUpdateDateTime).toISOString(),
+        ),
+        proxy: payment.proxy,
+        ibgeTownCode: payment.ibgeTownCode,
+        status: payment.status,
+        ...(payment.code && {
+          rejectionReason: {
+            code: payment.code,
+            detail: payment.detail,
           },
-          ...(payment.transactionIdentification && {
-            transactionIdentification: payment.transactionIdentification,
-          }), // Torna opcional
-          remittanceInformation: payment.remittanceInformation,
-          ...(payment.authorisationFlow && {
-            authorisationFlow: payment.authorisationFlow,
-          }), // Torna opcional
+        }),
+        localInstrument: payment.localInstrument,
+        cnpjInitiator: payment.cnpjInitiator,
+        payment: {
+          amount: payment.payment.amount,
+          currency: payment.payment.currency,
         },
-      ];
+        ...(payment.transactionIdentification && {
+          transactionIdentification: payment.transactionIdentification,
+        }), // Torna opcional
+        remittanceInformation: payment.remittanceInformation,
+        ...(payment.authorisationFlow && {
+          authorisationFlow: payment.authorisationFlow,
+        }), // Torna opcional
+        ...(payment.cancellation && {
+          cancellation: {
+            reason: payment.cancellation.reason,
+            cancelledFrom: payment.cancellation.cancelledFrom,
+            cancelledAt: dataFormat(
+              new Date(payment.cancellation.cancelledAt).toISOString(),
+            ),
+            cancelledBy: {
+              document: {
+                identification: payment.cancellation.cancelledByIdentification,
+                rel: payment.cancellation.cancelledByRel,
+              },
+            },
+          },
+        }), // Torna opcional
+      };
+    }
+
+    // Retornar a estrutura com o tipo esperado
+    const currentDate = new Date(); // Obtém a data atual
+    const requestDateTime = dataFormat(currentDate.toISOString());
+
+    return {
+      data,
+      links: {
+        self: '',
+      },
+      meta: {
+        requestDateTime: requestDateTime,
+      },
+    };
+  }
+
+  private mapToCancellationPaymentV4ResponseDto(payment): any {
+    let data;
+
+    function dataFormat(params: any) {
+      return params.split('.')[0] + 'Z';
+    }
+
+    console.log('- Mapeando a response');
+
+    // Verificar se payment é uma lista/array de objetos
+    if (Array.isArray(payment)) {
+      console.log('Transformar cada objeto da lista para o formato desejado');
+
+      data = payment.map((item) => ({
+        paymentId: item.paymentId,
+        statusUpdateDateTime: dataFormat(
+          new Date(item.statusUpdateDateTime).toISOString(),
+        ),
+      }));
+    } else {
+      console.log('Transformar o objeto único para o formato desejado');
+
+      data = {
+        paymentId: payment.paymentId,
+        statusUpdateDateTime: dataFormat(
+          new Date(payment.statusUpdateDateTime).toISOString(),
+        ),
+      };
     }
 
     // Retornar a estrutura com o tipo esperado
