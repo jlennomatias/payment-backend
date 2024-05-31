@@ -60,9 +60,7 @@ class DataDto {
   @IsString()
   qrCode?: string;
 
-  @IsNotEmpty()
-  @IsString()
-  proxy: string;
+  proxy?: string;
 
   @IsNotEmpty()
   @IsString()

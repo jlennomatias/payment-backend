@@ -1,6 +1,7 @@
 export class CreatePixDto {
   amount: number;
   clientCode: string;
+  transactionIdentification?: string;
   debitParty: {
     account: string;
     branch: number;

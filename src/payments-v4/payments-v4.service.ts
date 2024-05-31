@@ -46,8 +46,10 @@ export class PaymentsV4Service {
           const currentDate = new Date().toISOString(); // Obtém a data atual
           const dataAtual = currentDate.substring(0, 10);
 
-          console.log('agora: ', dataAtual, datePayment);
+          console.log(`agora: ${dataAtual}, data do pagamento: ${datePayment}`);
           dto.status = dataAtual >= datePayment ? 'RCVD' : 'SCHD';
+          console.log('status: ', dto.status);
+
           dto.date = datePayment;
 
           const payment = await this.prismaService.payment.create({
@@ -119,11 +121,12 @@ export class PaymentsV4Service {
 
           // Acionando o webhook
 
-          this.webhookPaymentsService.fetchDataAndUpdate(
+          const webhook = this.webhookPaymentsService.fetchDataAndUpdate(
             pixData.transactionId,
             payment.paymentId,
             payment.status,
           );
+          console.log('retorno webhook', await webhook);
 
           return payment;
         }),

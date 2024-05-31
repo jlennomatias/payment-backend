@@ -21,18 +21,13 @@ export class WebhookPaymentsService {
       const newValue = await this.fetchData(pixId); // Obtém os dados atuais
       await this.updatePixId(pixId, paymentId); // Obtém os dados atuais
 
-      console.log(`- Validando status atual: ${newValue}`);
       console.log(
-        `- Validando se houve alteração de status do pix. status: ${this.hasValueChanged(newValue)}`,
+        `- Atualizando o paymentId ${paymentId} com status: ${this.hasValueChanged(newValue)}`,
       );
-      console.log(
-        `- Validando se o status é um enum. status: ${this.isValidStatus(newValue)}`,
-      );
-      if (this.hasValueChanged(newValue) && this.isValidStatus(newValue)) {
-        console.log(`- Atualizando o status do paymentId ${paymentId}`);
-        await this.updateData(newValue, paymentId); // Atualiza a base de dados se o status não for "ACSC"
-      }
-      return;
+
+      await this.updateData(newValue, paymentId); // Atualiza a base de dados se o status não for "ACSC"
+
+      return `- Webhook encerrado com status: ${newValue}`;
     } catch (error) {
       console.error('Erro ao executar a rotina: ', error);
     }
@@ -52,10 +47,11 @@ export class WebhookPaymentsService {
   async updateData(newValue: string, paymentId: string): Promise<void> {
     // Lógica para fazer a requisição PUT para atualizar os dados na base
     console.log(`-- Alterando o status para: ${newValue}`);
+
     await this.prismaService.payment.update({
       where: { paymentId: paymentId },
       data: {
-        status: 'ACSC',
+        status: newValue,
       },
     });
     console.log('-- Acionando a api de webhook na Finansystech');
@@ -95,7 +91,7 @@ export class WebhookPaymentsService {
   convertStatus(data: string): string {
     const statusMap: { [key: string]: string } = {
       CONFIRMED: 'ACSC',
-      SCHEDULE: 'SCHD',
+      PROCESSING: 'SCHD',
       REJECT: 'RJCT',
       // Adicione mais mapeamentos conforme necessário
     };

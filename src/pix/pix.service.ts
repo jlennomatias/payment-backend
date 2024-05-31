@@ -12,8 +12,6 @@ export class PixService {
   async createPix(data: any): Promise<any> {
     console.log('- Iniciando a criação do pix');
 
-    console.log('-- Consultando o dict');
-
     const dataPix = await this.getDict({
       // Mock - cpf
       payerId: '11223344556',
@@ -23,22 +21,23 @@ export class PixService {
     console.log('-- Criando o body para o pix');
     const pix: CreatePixDto = {
       amount: Number(data.payment.amount),
+      transactionIdentification: data.qrcode,
       clientCode: data.transactionIdentification || '14588549',
       debitParty: {
-        account: dataPix.account.accountNumber,
-        branch: dataPix.account.branch,
-        taxId: dataPix.owner.taxIdNumber,
-        accountType: dataPix.account.accountType,
-        name: dataPix.owner.name,
+        account: dataPix.data.account.accountNumber,
+        branch: dataPix.data.account.branch,
+        taxId: dataPix.data.owner.taxIdNumber,
+        accountType: dataPix.data.account.accountType,
+        name: dataPix.data.owner.name,
       },
       creditParty: {
         key: data.proxy,
-        bank: dataPix.account.participant,
+        bank: dataPix.data.account.participant,
         account: data.creditorAccount.number,
-        branch: dataPix.account.branch,
+        branch: dataPix.data.account.branch,
         taxId: '11223344556',
         accountType: data.creditorAccount.accountType,
-        name: dataPix.owner.name,
+        name: dataPix.data.owner.name,
       },
       endToEndId: data.endToEndId,
       initiationType: 'string',
@@ -66,16 +65,19 @@ export class PixService {
 
   async getDict(data: any): Promise<any> {
     try {
-      console.log('buscando a chave pix');
+      console.log('- Consultando o dict');
 
       const response = await lastValueFrom(
         this.httpService.post(`http://localhost:3030/pix/v1/dict/v2/key`, data),
       );
 
-      return response.data;
+      return response;
     } catch (error) {
-      console.error('Ocorreu um erro:', error);
-      throw error;
+      console.error(
+        'Ocorreu um erro ao consultar o dict: ',
+        error?.response?.data || error.code,
+      );
+      return error.response.data;
     }
   }
 }
