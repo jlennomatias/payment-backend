@@ -15,7 +15,7 @@ export class WebhookPaymentsService {
   @Cron(CronExpression.EVERY_10_SECONDS) // Executa a cada hora, por exemplo
   async fetchDataAndUpdate(pixId: string, paymentId: string, status: string) {
     console.log(
-      `- Iniciando o WebhookPix com os valores pixId: ${pixId}, paymentId: ${paymentId}, status: ${status}`,
+      `- Iniciando o WebhookPix com os valores de pixId: ${pixId}, paymentId: ${paymentId}, status: ${status}`,
     );
     try {
       const newValue = await this.fetchData(pixId); // Obtém os dados atuais
@@ -35,7 +35,7 @@ export class WebhookPaymentsService {
 
   async fetchData(id: string): Promise<any> {
     console.log('- Consultando o status do pix');
-    // Lógica para fazer a requisição GET para obter os dados atuais
+    // Lógica para fazer a requisição GET para obter os dados atuais do pix
     const response = await lastValueFrom(
       this.httpService.get(`http://localhost:3030/pix/${id}`),
     );

@@ -23,7 +23,9 @@ export class PaymentsV4Service {
 
   async create(createPaymentsV4Dto: CreatePaymentsV4Dto) {
     try {
-      console.log(JSON.stringify(createPaymentsV4Dto));
+      console.log(
+        `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
+      );
 
       // Regras de negocios
       const existingDict =
@@ -34,11 +36,8 @@ export class PaymentsV4Service {
       // Criando pagamentos
       const payments = await Promise.all(
         createPaymentsV4Dto.data.map(async (dto) => {
-          // Cria o pix
-
-          console.log('- Criando pagamento');
-
           console.log('- Validando datas');
+
           const datePayment = dto.endToEndId
             .substring(9, 17)
             .replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
@@ -120,7 +119,6 @@ export class PaymentsV4Service {
           const pixData = await this.pixService.createPix(dto);
 
           // Acionando o webhook
-
           const webhook = this.webhookPaymentsService.fetchDataAndUpdate(
             pixData.transactionId,
             payment.paymentId,

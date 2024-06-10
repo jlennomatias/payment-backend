@@ -3,7 +3,6 @@ import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
 import { GetDictDto } from './dto/get-dict.dto';
 import { CreatePixDto } from './dto/create-pix.dto';
-// import { CreatePixDto } from './dto/create-pix.dto';
 
 @Injectable()
 export class PixService {
@@ -51,7 +50,7 @@ export class PixService {
     const result = await lastValueFrom(
       this.httpService.post('http://localhost:3030/pix', pix),
     );
-    console.log('-- Response da requisição createPix: ');
+    console.log('-- Response da requisição createPix: ', result);
 
     return result.data;
   }
