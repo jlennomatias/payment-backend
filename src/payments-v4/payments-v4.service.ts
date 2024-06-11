@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
 import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
@@ -11,6 +11,8 @@ import {
 import { PixService } from 'src/pix/pix.service';
 import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.service';
 import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger } from 'winston';
 
 @Injectable()
 export class PaymentsV4Service {
@@ -19,11 +21,12 @@ export class PaymentsV4Service {
     private pixService: PixService,
     private webhookPaymentsService: WebhookPaymentsService,
     private rulesPaymentV4Service: RulesPaymentV4Service,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
   async create(createPaymentsV4Dto: CreatePaymentsV4Dto) {
     try {
-      console.log(
+      this.logger.info(
         `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
       );
 
@@ -36,8 +39,7 @@ export class PaymentsV4Service {
       // Criando pagamentos
       const payments = await Promise.all(
         createPaymentsV4Dto.data.map(async (dto) => {
-          console.log('- Validando datas');
-
+          this.logger.info(`Validando datas`);
           const datePayment = dto.endToEndId
             .substring(9, 17)
             .replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
@@ -45,9 +47,11 @@ export class PaymentsV4Service {
           const currentDate = new Date().toISOString(); // Obtém a data atual
           const dataAtual = currentDate.substring(0, 10);
 
-          console.log(`agora: ${dataAtual}, data do pagamento: ${datePayment}`);
+          this.logger.info(
+            `agora: ${dataAtual}, data do pagamento: ${datePayment}`,
+          );
           dto.status = dataAtual >= datePayment ? 'RCVD' : 'SCHD';
-          console.log('status: ', dto.status);
+          this.logger.info(`status: ${dto.status}`);
 
           dto.date = datePayment;
 
@@ -119,12 +123,12 @@ export class PaymentsV4Service {
           const pixData = await this.pixService.createPix(dto);
 
           // Acionando o webhook
-          const webhook = this.webhookPaymentsService.fetchDataAndUpdate(
+          this.webhookPaymentsService.fetchDataAndUpdate(
             pixData.transactionId,
             payment.paymentId,
             payment.status,
           );
-          console.log('retorno webhook', await webhook);
+          this.logger.info(`retorno webhook: ${dto.status}`);
 
           return payment;
         }),
@@ -133,7 +137,7 @@ export class PaymentsV4Service {
       return this.mapToPaymentV4ResponseDto(payments);
     } catch (error) {
       // Tratar erros gerais
-      console.error('Erro ao cadastrar pagamento: ', error.message);
+      this.logger.error(`Erro ao cadastrar pagamento:  ${error.message}`);
       return this.mapToPaymentV4ResponseError(error);
     }
   }
@@ -252,7 +256,7 @@ export class PaymentsV4Service {
 
   async update(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
-      console.log(`Iniciando o cancelamento do pagamento: ${id}`);
+      this.logger.info(`Iniciando o cancelamento do pagamento: ${id}`);
 
       const payment = await this.prismaService.payment.findUnique({
         where: { paymentId: id },
@@ -280,11 +284,11 @@ export class PaymentsV4Service {
         },
       });
 
-      console.log('alterado o status:');
+      this.logger.info(`Pagamento cancelado com sucesso`);
 
       return await this.findOne(id);
     } catch (error) {
-      console.log(error);
+      this.logger.error(`Erro ao atualizar dado ${error}`);
       if (error.code === 'P2014') {
         throw new UnprocessableEntityError(
           `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
@@ -305,7 +309,7 @@ export class PaymentsV4Service {
 
       const updatedPayments = [];
       for (const payment of paymentsUpdate) {
-        console.log(`Cancelando o pagamento ${payment.paymentId}`);
+        this.logger.info(`Cancelando o pagamento ${payment.paymentId}`);
 
         const reasonCancel =
           await this.rulesPaymentV4Service.rulesCancelPayments(payment);
@@ -330,7 +334,7 @@ export class PaymentsV4Service {
           });
           updatedPayments.push(updatedPayment);
         } catch (error) {
-          console.log(error.message);
+          this.logger.error(`Erro ao cancelar o pagamento ${error.message}`);
         }
       }
 
@@ -347,7 +351,8 @@ export class PaymentsV4Service {
 
       return this.mapToCancellationPaymentV4ResponseDto(payments);
     } catch (error) {
-      console.log(error);
+      this.logger.error(`Erro ao cancelar todos os pagamentos ${error}`);
+
       if (error.code === 'P2014') {
         throw new UnprocessableEntityError(
           `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
@@ -365,11 +370,13 @@ export class PaymentsV4Service {
       return params.split('.')[0] + 'Z';
     }
 
-    console.log('- Mapeando a response');
+    this.logger.info(`Mapeando a response`);
 
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
-      console.log('Transformar cada objeto da lista para o formato desejado');
+      this.logger.info(
+        `Transformar cada objeto da lista para o formato desejado`,
+      );
 
       data = payment.map((item) => ({
         paymentId: item.paymentId,
@@ -423,7 +430,7 @@ export class PaymentsV4Service {
         }), // Torna opcional
       }));
     } else {
-      console.log('Transformar o objeto único para o formato desejado');
+      this.logger.info(`Transformar o objeto único para o formato desejado`);
 
       data = {
         paymentId: payment.paymentId,
@@ -500,12 +507,13 @@ export class PaymentsV4Service {
       return params.split('.')[0] + 'Z';
     }
 
-    console.log('- Mapeando a response');
+    this.logger.info(`Mapeando a response`);
 
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
-      console.log('Transformar cada objeto da lista para o formato desejado');
-
+      this.logger.info(
+        `Transformar cada objeto da lista para o formato desejado`,
+      );
       data = payment.map((item) => ({
         paymentId: item.paymentId,
         statusUpdateDateTime: dataFormat(
@@ -513,7 +521,7 @@ export class PaymentsV4Service {
         ),
       }));
     } else {
-      console.log('Transformar o objeto único para o formato desejado');
+      this.logger.info(`Transformar o objeto único para o formato desejado`);
 
       data = {
         paymentId: payment.paymentId,
@@ -539,7 +547,7 @@ export class PaymentsV4Service {
   }
 
   private mapToPaymentV4ResponseError(error): any {
-    console.log('Mapeando a saida de erro');
+    this.logger.info(`Mapeando a saida de erro`);
 
     function dataFormat(params) {
       return params.split('.')[0] + 'Z';

@@ -1,15 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
 import { GetDictDto } from './dto/get-dict.dto';
 import { CreatePixDto } from './dto/create-pix.dto';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger } from 'winston';
 
 @Injectable()
 export class PixService {
-  constructor(private httpService: HttpService) {}
+  constructor(
+    private httpService: HttpService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+  ) {}
 
   async createPix(data: any): Promise<any> {
-    console.log('- Iniciando a criação do pix');
+    this.logger.info(`Iniciando a criação do pix`);
 
     const dataPix = await this.getDict({
       // Mock - cpf
@@ -17,7 +22,7 @@ export class PixService {
       key: data.proxy,
     });
 
-    console.log('-- Criando o body para o pix');
+    this.logger.info(`Criando o body para o pix`);
     const pix: CreatePixDto = {
       amount: Number(data.payment.amount),
       transactionIdentification: data.qrcode,
@@ -46,11 +51,11 @@ export class PixService {
       transactionType: 'string',
     };
 
-    console.log('-- Efetuando a requisição createPix');
+    this.logger.info(`Efetuando a requisição createPix`);
     const result = await lastValueFrom(
       this.httpService.post('http://localhost:3030/pix', pix),
     );
-    console.log('-- Response da requisição createPix: ', result);
+    this.logger.info(`Response da requisição createPix:  ${result}`);
 
     return result.data;
   }
@@ -64,7 +69,7 @@ export class PixService {
 
   async getDict(data: any): Promise<any> {
     try {
-      console.log('- Consultando o dict');
+      this.logger.info(`Consultando o dict`);
 
       const response = await lastValueFrom(
         this.httpService.post(`http://localhost:3030/pix/v1/dict/v2/key`, data),
@@ -72,9 +77,8 @@ export class PixService {
 
       return response;
     } catch (error) {
-      console.error(
-        'Ocorreu um erro ao consultar o dict: ',
-        error?.response?.data || error.code,
+      this.logger.info(
+        `Ocorreu um erro ao consultar o dict: ${error?.response?.data || error.code}`,
       );
       return error.response.data;
     }

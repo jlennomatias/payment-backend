@@ -5,6 +5,7 @@ import { AutomaticPaymentsV1Module } from './automatic-payments-v1/automatic-pay
 import { PixModule } from './pix/pix.module';
 import { RulesPaymentV4Module } from './rules-payment-v4/rules-payment-v4.module';
 import { WebhookPaymentsModule } from './webhook-payments/webhook-payments.module';
+import { LoggingModule } from './logging.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { WebhookPaymentsModule } from './webhook-payments/webhook-payments.modul
     PixModule,
     RulesPaymentV4Module,
     WebhookPaymentsModule,
+    LoggingModule,
   ],
 })
 export class AppModule {}
