@@ -1,26 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { lastValueFrom } from 'rxjs';
 import { GetDictDto } from './dto/get-dict.dto';
 import { CreatePixDto } from './dto/create-pix.dto';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
+import { ExternalApiService } from 'src/external-api/external-api.service';
 
 @Injectable()
 export class PixService {
   constructor(
-    private httpService: HttpService,
+    private readonly externalApiService: ExternalApiService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
-  async createPix(data: any): Promise<any> {
+  async createPix(data: any, existingDict: any): Promise<any> {
     this.logger.info(`Iniciando a criação do pix`);
-
-    const dataPix = await this.getDict({
-      // Mock - cpf
-      payerId: '11223344556',
-      key: data.proxy,
-    });
 
     this.logger.info(`Criando o body para o pix`);
     const pix: CreatePixDto = {
@@ -28,20 +21,20 @@ export class PixService {
       transactionIdentification: data.qrcode,
       clientCode: data.transactionIdentification || '14588549',
       debitParty: {
-        account: dataPix.data.account.accountNumber,
-        branch: dataPix.data.account.branch,
-        taxId: dataPix.data.owner.taxIdNumber,
-        accountType: dataPix.data.account.accountType,
-        name: dataPix.data.owner.name,
+        account: 'existingDict.data.account.accountNumber',
+        branch: 1234,
+        taxId: 'existingDict.data.owner.taxIdNumber',
+        accountType: 'existingDict.data.account.accountType',
+        name: 'existingDict.data.owner.name',
       },
       creditParty: {
-        key: data.proxy,
-        bank: dataPix.data.account.participant,
+        key: existingDict.key,
+        bank: existingDict.account.participant,
         account: data.creditorAccount.number,
-        branch: dataPix.data.account.branch,
+        branch: existingDict.account.branch,
         taxId: '11223344556',
         accountType: data.creditorAccount.accountType,
-        name: dataPix.data.owner.name,
+        name: existingDict.owner.name,
       },
       endToEndId: data.endToEndId,
       initiationType: 'string',
@@ -52,35 +45,29 @@ export class PixService {
     };
 
     this.logger.info(`Efetuando a requisição createPix`);
-    const result = await lastValueFrom(
-      this.httpService.post('http://localhost:3030/pix', pix),
-    );
+    const result = await this.externalApiService.createPix(pix);
     this.logger.info(`Response da requisição createPix:  ${result}`);
 
-    return result.data;
+    return result;
   }
 
   async getPix(id: number): Promise<GetDictDto> {
-    const result = await lastValueFrom(
-      this.httpService.get(`http://localhost:3030/pix/${id}`),
-    );
-    return result.data;
+    const result = await this.externalApiService.getPix(id);
+    return result;
   }
 
   async getDict(data: any): Promise<any> {
     try {
       this.logger.info(`Consultando o dict`);
 
-      const response = await lastValueFrom(
-        this.httpService.post(`http://localhost:3030/pix/v1/dict/v2/key`, data),
-      );
+      const response = await this.externalApiService.getDictData(data);
 
       return response;
     } catch (error) {
-      this.logger.info(
+      this.logger.error(
         `Ocorreu um erro ao consultar o dict: ${error?.response?.data || error.code}`,
       );
-      return error.response.data;
+      return error?.response?.data || error.code;
     }
   }
 }

@@ -83,13 +83,17 @@ export class RulesPaymentV4Service {
         `Proxy with ID ${proxy} not found`,
       );
     }
-    return pixData.data;
+
+    this.logger.info('imprimindo esse log', pixData);
+    return pixData;
   }
 
   async dictAccounts(creditorAccount: any, pixData: any) {
-    this.logger.info(`Verificando se creditorAccount são iguais`);
+    this.logger.info(
+      `Verificando se creditorAccount são iguais: ${creditorAccount}, ${pixData}`,
+    );
 
-    const findDifferences = (acc1, acc2) => {
+    const findDifferences = (acc1: any, acc2: any) => {
       const differences: any = {};
       if (acc1.ispb !== acc2.ispb)
         differences.ispb = { expected: acc1.ispb, actual: acc2.ispb };

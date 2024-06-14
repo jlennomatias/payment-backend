@@ -13,11 +13,15 @@ import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.ser
 import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
+import { QueryBus } from '@nestjs/cqrs';
+import { GetPaymentQuery } from './queries/get-payment/get-payment.query';
+import { plainToClass } from 'class-transformer';
 
 @Injectable()
 export class PaymentsV4Service {
   constructor(
     private prismaService: PrismaService,
+    private readonly queryBus: QueryBus,
     private pixService: PixService,
     private webhookPaymentsService: WebhookPaymentsService,
     private rulesPaymentV4Service: RulesPaymentV4Service,
@@ -120,7 +124,7 @@ export class PaymentsV4Service {
           });
 
           // Criando o Pix
-          const pixData = await this.pixService.createPix(dto);
+          const pixData = await this.pixService.createPix(dto, existingDict);
 
           // Acionando o webhook
           this.webhookPaymentsService.fetchDataAndUpdate(
@@ -144,51 +148,54 @@ export class PaymentsV4Service {
 
   async findAll(id: string) {
     try {
-      const payments = await this.prismaService.payment.findMany({
-        where: { consentId: id },
-        include: {
-          payment: {
-            select: {
-              amount: true,
-              currency: true,
-            },
-          },
-          debtorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          creditorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          cancellation: {
-            select: {
-              reason: true,
-              cancelledFrom: true,
-              cancelledAt: true,
-              cancelledByIdentification: true,
-              cancelledByRel: true,
-            },
-          },
-        },
-      });
+      const query = plainToClass(GetPaymentQuery, { consentId: id });
 
-      if (payments.length === 0) {
+      const payments = await this.queryBus.execute(query);
+      // const payments = await this.prismaService.payment.findMany({
+      //   where: { consentId: id },
+      //   include: {
+      //     payment: {
+      //       select: {
+      //         amount: true,
+      //         currency: true,
+      //       },
+      //     },
+      //     debtorAccount: {
+      //       select: {
+      //         ispb: true,
+      //         issuer: true,
+      //         number: true,
+      //         accountType: true,
+      //       },
+      //     },
+      //     creditorAccount: {
+      //       select: {
+      //         ispb: true,
+      //         issuer: true,
+      //         number: true,
+      //         accountType: true,
+      //       },
+      //     },
+      //     cancellation: {
+      //       select: {
+      //         reason: true,
+      //         cancelledFrom: true,
+      //         cancelledAt: true,
+      //         cancelledByIdentification: true,
+      //         cancelledByRel: true,
+      //       },
+      //     },
+      //   },
+      // });
+
+      if (!payments) {
         throw new NotFoundError(
           `No payments found for consent with ID ${id}`,
           `No payments found for consent with ID ${id}`,
           `No payments found for consent with ID ${id}`,
         );
       }
-
+      console.log('imprimiu assim', payments);
       return this.mapToPaymentV4ResponseDto(payments);
     } catch (error) {
       if (error.code === 'P2025') {
@@ -204,42 +211,10 @@ export class PaymentsV4Service {
 
   async findOne(id: string) {
     try {
-      const payment = await this.prismaService.payment.findUniqueOrThrow({
-        where: { paymentId: id },
-        include: {
-          payment: {
-            select: {
-              amount: true,
-              currency: true,
-            },
-          },
-          debtorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          creditorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          cancellation: {
-            select: {
-              reason: true,
-              cancelledFrom: true,
-              cancelledAt: true,
-              cancelledByIdentification: true,
-              cancelledByRel: true,
-            },
-          },
-        },
-      });
+      const query = plainToClass(GetPaymentQuery, { paymentId: id });
+
+      const payment = await this.queryBus.execute(query);
+      console.log('imprimiu assim', payment);
 
       return this.mapToPaymentV4ResponseDto(payment);
     } catch (error) {

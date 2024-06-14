@@ -5,6 +5,8 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { PixModule } from 'src/pix/pix.module';
 import { RulesPaymentV4Module } from 'src/rules-payment-v4/rules-payment-v4.module';
 import { WebhookPaymentsModule } from 'src/webhook-payments/webhook-payments.module';
+import { CqrsModule } from '@nestjs/cqrs';
+import { QueryHandlers } from './queries';
 
 @Module({
   imports: [
@@ -12,8 +14,9 @@ import { WebhookPaymentsModule } from 'src/webhook-payments/webhook-payments.mod
     PixModule,
     RulesPaymentV4Module,
     WebhookPaymentsModule,
+    CqrsModule,
   ],
   controllers: [PaymentsV4Controller],
-  providers: [PaymentsV4Service],
+  providers: [PaymentsV4Service, ...QueryHandlers],
 })
 export class PaymentsV4Module {}

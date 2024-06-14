@@ -6,6 +6,8 @@ import { PixModule } from './pix/pix.module';
 import { RulesPaymentV4Module } from './rules-payment-v4/rules-payment-v4.module';
 import { WebhookPaymentsModule } from './webhook-payments/webhook-payments.module';
 import { LoggingModule } from './logging.module';
+import { HttpModule } from './http/http.module';
+import { ExternalApiModule } from './external-api/external-api.module';
 
 @Module({
   imports: [
@@ -13,9 +15,11 @@ import { LoggingModule } from './logging.module';
     AutomaticPaymentsV1Module,
     // KeycloakModule,
     PixModule,
-    RulesPaymentV4Module,
-    WebhookPaymentsModule,
+    RulesPaymentV4Module, // corrigir para a paymentv4 e automatic
+    WebhookPaymentsModule, // corrigir para a paymentv4 e automatic
     LoggingModule,
+    HttpModule,
+    ExternalApiModule,
   ],
 })
 export class AppModule {}
