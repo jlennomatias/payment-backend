@@ -25,7 +25,7 @@ export class WebhookPaymentsService {
       const newValue = await this.fetchData(pixId); // Obtém os dados atuais
       await this.updatePixId(pixId, paymentId); // Obtém os dados atuais
 
-      this.logger.info(
+      this.logger.debug(
         `Atualizando o paymentId ${paymentId} com status: ${this.hasValueChanged(newValue)}`,
       );
 
@@ -40,14 +40,14 @@ export class WebhookPaymentsService {
   }
 
   async fetchData(id: string): Promise<any> {
-    this.logger.info(`Consultando o status do pix`);
+    this.logger.debug(`Consultando o status do pix`);
 
     // Lógica para fazer a requisição GET para obter os dados atuais do pix
     const response = await lastValueFrom(
       this.httpService.get(`http://localhost:3030/pix/${id}`),
     );
 
-    this.logger.info(`Status do pix: ${response.data.status}`);
+    this.logger.debug(`Status do pix: ${response.data.status}`);
 
     return this.convertStatus(response.data.status);
   }
@@ -55,7 +55,7 @@ export class WebhookPaymentsService {
   async updateData(newValue: string, paymentId: string): Promise<void> {
     // Lógica para fazer a requisição PUT para atualizar os dados na base
 
-    this.logger.info(`Alterando o status para: ${newValue}`);
+    this.logger.debug(`Alterando o status para: ${newValue}`);
 
     await this.prismaService.payment.update({
       where: { paymentId: paymentId },
@@ -64,7 +64,7 @@ export class WebhookPaymentsService {
       },
     });
 
-    this.logger.info(`Acionando a api de webhook na Finansystech`);
+    this.logger.debug(`Acionando a api de webhook na Finansystech`);
 
     // await lastValueFrom(
     //   this.httpService.post(`http://localhost:3030/pix/${paymentId}`, {
@@ -76,13 +76,13 @@ export class WebhookPaymentsService {
 
     this.pixStatus = newValue; // Atualiza o último valor recebido
 
-    this.logger.info(`Finalizando o webhook com status ${this.pixStatus}`);
+    this.logger.debug(`Finalizando o webhook com status ${this.pixStatus}`);
   }
 
   async updatePixId(pixId: string, paymentId: string): Promise<void> {
     // Lógica para fazer a requisição PUT para atualizar os dados na base
 
-    this.logger.info(`Alterando o pixId na base de dados`);
+    this.logger.debug(`Alterando o pixId na base de dados`);
     await this.prismaService.payment.update({
       where: { paymentId: paymentId },
       data: {
@@ -90,7 +90,7 @@ export class WebhookPaymentsService {
       },
     });
 
-    this.logger.info(`Finalizando o pixId na base de dados`);
+    this.logger.debug(`Finalizando o pixId na base de dados`);
   }
 
   hasValueChanged(newValue: any): boolean {

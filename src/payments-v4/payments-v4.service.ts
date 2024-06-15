@@ -13,15 +13,17 @@ import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.ser
 import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
-import { QueryBus } from '@nestjs/cqrs';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetPaymentQuery } from './queries/get-payment/get-payment.query';
 import { plainToClass } from 'class-transformer';
+import { CreatePaymentsV4Command } from './commands/create-payment/create-payment.command';
 
 @Injectable()
 export class PaymentsV4Service {
   constructor(
     private prismaService: PrismaService,
     private readonly queryBus: QueryBus,
+    private readonly commandBus: CommandBus,
     private pixService: PixService,
     private webhookPaymentsService: WebhookPaymentsService,
     private rulesPaymentV4Service: RulesPaymentV4Service,
@@ -41,6 +43,7 @@ export class PaymentsV4Service {
         );
 
       // Criando pagamentos
+
       const payments = await Promise.all(
         createPaymentsV4Dto.data.map(async (dto) => {
           this.logger.info(`Validando datas`);
@@ -51,77 +54,49 @@ export class PaymentsV4Service {
           const currentDate = new Date().toISOString(); // Obtém a data atual
           const dataAtual = currentDate.substring(0, 10);
 
-          this.logger.info(
+          this.logger.debug(
             `agora: ${dataAtual}, data do pagamento: ${datePayment}`,
           );
           dto.status = dataAtual >= datePayment ? 'RCVD' : 'SCHD';
-          this.logger.info(`status: ${dto.status}`);
+          this.logger.debug(`status: ${dto.status}`);
 
           dto.date = datePayment;
 
-          const payment = await this.prismaService.payment.create({
-            data: {
-              consentId: dto.consentId,
-              pixId: '',
-              proxy: dto.proxy,
-              endToEndId: dto.endToEndId,
-              ibgeTownCode: dto.ibgeTownCode,
-              status: dto.status,
-              date: dto.date,
-              localInstrument: dto.localInstrument,
-              cnpjInitiator: dto.cnpjInitiator,
-              payment: {
-                create: {
-                  amount: dto.payment.amount,
-                  currency: dto.payment.currency,
-                },
-              },
-              transactionIdentification: dto?.transactionIdentification,
-              remittanceInformation: dto.remittanceInformation,
-              authorisationFlow: dto?.authorisationFlow,
-              qrCode: dto.qrCode,
-              debtorAccount: {
-                create: {
-                  ispb: existingDict.account.participant || null,
-                  issuer: '0001',
-                  number: existingDict.account.accountNumber,
-                  accountType: existingDict.account.accountType,
-                },
-              },
-              creditorAccount: {
-                create: {
-                  ispb: dto.creditorAccount.ispb,
-                  issuer: dto.creditorAccount.issuer,
-                  number: dto.creditorAccount.number,
-                  accountType: dto.creditorAccount.accountType,
-                },
-              },
+          const command = plainToClass(CreatePaymentsV4Command, {
+            consentId: dto.consentId,
+            pixId: null,
+            proxy: dto.proxy,
+            endToEndId: dto.endToEndId,
+            ibgeTownCode: dto.ibgeTownCode,
+            status: dto.status,
+            date: dto.date,
+            localInstrument: dto.localInstrument,
+            cnpjInitiator: dto.cnpjInitiator,
+            payment: {
+              amount: dto.payment.amount,
+              currency: dto.payment.currency,
             },
-            include: {
-              payment: {
-                select: {
-                  amount: true,
-                  currency: true,
-                },
-              },
-              debtorAccount: {
-                select: {
-                  ispb: true,
-                  issuer: true,
-                  number: true,
-                  accountType: true,
-                },
-              },
-              creditorAccount: {
-                select: {
-                  ispb: true,
-                  issuer: true,
-                  number: true,
-                  accountType: true,
-                },
-              },
+            transactionIdentification: dto?.transactionIdentification,
+            remittanceInformation: dto.remittanceInformation,
+            authorisationFlow: dto?.authorisationFlow,
+            qrCode: dto.qrCode,
+            debtorAccount: {
+              ispb: existingDict.account.participant,
+              issuer: '0001',
+              number: existingDict.account.accountNumber,
+              accountType: existingDict.account.accountType,
+            },
+            creditorAccount: {
+              ispb: dto.creditorAccount.ispb,
+              issuer: dto.creditorAccount.issuer,
+              number: dto.creditorAccount.number,
+              accountType: dto.creditorAccount.accountType,
             },
           });
+
+          const payment = await this.commandBus.execute(command);
+
+          this.logger.debug(`response payment: ${JSON.stringify(payment)}`);
 
           // Criando o Pix
           const pixData = await this.pixService.createPix(dto, existingDict);
@@ -132,7 +107,6 @@ export class PaymentsV4Service {
             payment.paymentId,
             payment.status,
           );
-          this.logger.info(`retorno webhook: ${dto.status}`);
 
           return payment;
         }),
@@ -151,42 +125,6 @@ export class PaymentsV4Service {
       const query = plainToClass(GetPaymentQuery, { consentId: id });
 
       const payments = await this.queryBus.execute(query);
-      // const payments = await this.prismaService.payment.findMany({
-      //   where: { consentId: id },
-      //   include: {
-      //     payment: {
-      //       select: {
-      //         amount: true,
-      //         currency: true,
-      //       },
-      //     },
-      //     debtorAccount: {
-      //       select: {
-      //         ispb: true,
-      //         issuer: true,
-      //         number: true,
-      //         accountType: true,
-      //       },
-      //     },
-      //     creditorAccount: {
-      //       select: {
-      //         ispb: true,
-      //         issuer: true,
-      //         number: true,
-      //         accountType: true,
-      //       },
-      //     },
-      //     cancellation: {
-      //       select: {
-      //         reason: true,
-      //         cancelledFrom: true,
-      //         cancelledAt: true,
-      //         cancelledByIdentification: true,
-      //         cancelledByRel: true,
-      //       },
-      //     },
-      //   },
-      // });
 
       if (!payments) {
         throw new NotFoundError(
@@ -195,14 +133,14 @@ export class PaymentsV4Service {
           `No payments found for consent with ID ${id}`,
         );
       }
-      console.log('imprimiu assim', payments);
+
       return this.mapToPaymentV4ResponseDto(payments);
     } catch (error) {
       if (error.code === 'P2025') {
         throw new NotFoundError(
+          error.code,
           `Payment with ID ${id} not found`,
-          `Payment with ID ${id} not found`,
-          `Payment with ID ${id} not found`,
+          error.meta?.message || `Payment with ID ${id} not found`,
         );
       }
       throw error;
@@ -214,15 +152,22 @@ export class PaymentsV4Service {
       const query = plainToClass(GetPaymentQuery, { paymentId: id });
 
       const payment = await this.queryBus.execute(query);
-      console.log('imprimiu assim', payment);
 
       return this.mapToPaymentV4ResponseDto(payment);
     } catch (error) {
       if (error.code === 'P2025') {
         throw new NotFoundError(
+          error.code,
           `Payment with ID ${id} not found`,
+          error.meta?.message || `Payment with ID ${id} not found`,
+        );
+      }
+
+      if (error.code === 'P2023') {
+        throw new NotFoundError(
+          error.code,
           `Payment with ID ${id} not found`,
-          `Payment with ID ${id} not found`,
+          error.meta.message,
         );
       }
       throw error;

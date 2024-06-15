@@ -1,7 +1,7 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GetPaymentQuery } from './get-payment.query';
-import { GetPaymentsV4Dto } from 'src/payments-v4/dto/get-payment-v4.dto';
+import { GetPaymentsV4Dto } from 'src/payments-v4/queries/get-payment/get-payment-v4.dto';
 
 @QueryHandler(GetPaymentQuery)
 export class GetPaymentHandler
@@ -47,20 +47,24 @@ export class GetPaymentHandler
 
     let payments;
 
-    if (query.consentId) {
-      payments = await this.prismaService.payment.findMany({
-        where: query,
-        include: include,
-      });
+    try {
+      if (query.consentId) {
+        payments = await this.prismaService.payment.findMany({
+          where: query,
+          include: include,
+        });
 
-      if (!payments.length) return null;
-    } else if (query.paymentId) {
-      payments = await this.prismaService.payment.findUniqueOrThrow({
-        where: { paymentId: query.paymentId },
-        include: include,
-      });
+        if (!payments.length) return null;
+      } else if (query.paymentId) {
+        payments = await this.prismaService.payment.findUniqueOrThrow({
+          where: { paymentId: query.paymentId },
+          include: include,
+        });
 
-      if (!payments) return null;
+        if (!payments) return null;
+      }
+    } catch (error) {
+      throw error;
     }
 
     return payments;
