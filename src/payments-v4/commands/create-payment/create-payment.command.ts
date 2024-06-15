@@ -1,59 +1,31 @@
-class PaymentDto {
-  amount: string;
-
-  currency: string;
-}
-
-class DebtorAccountDto {
-  ispb?: string;
-
-  issuer: string;
-
-  number: string;
-
-  accountType: string;
-}
-
-class CreditorAccountDto {
-  ispb?: string;
-
-  issuer: string;
-
-  number: string;
-
-  accountType: string;
-}
-
 export class CreatePaymentsV4Command {
   consentId: string;
-
-  pixId: string = null;
-
-  proxy: string;
-
+  pixId: string;
+  proxy?: string;
   endToEndId: string;
-
   ibgeTownCode: string;
-
   status: string;
-
   date: string;
-
   localInstrument: string;
-
   cnpjInitiator: string;
-
-  payment: PaymentDto;
-
+  payment: {
+    amount: string;
+    currency: string;
+  };
   transactionIdentification?: string;
-
-  remittanceInformation: string;
-
+  remittanceInformation?: string;
   authorisationFlow?: string;
-
-  qrCode: string;
-
-  debtorAccount: DebtorAccountDto;
-
-  creditorAccount: CreditorAccountDto;
+  qrCode?: string;
+  debtorAccount: {
+    ispb: string;
+    issuer: string;
+    number: string;
+    accountType: string;
+  };
+  creditorAccount: {
+    ispb: string;
+    issuer: string;
+    number: string;
+    accountType: string;
+  };
 }

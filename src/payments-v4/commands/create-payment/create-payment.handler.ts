@@ -1,15 +1,14 @@
 import { ICommandHandler, CommandHandler } from '@nestjs/cqrs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePaymentsV4Command } from './create-payment.command';
-import { CreatePaymentsV4CommandDto } from './create-payment.dto';
 import { Logger } from 'winston';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Inject } from '@nestjs/common';
+import { CreatePaymentsV4Dto } from 'src/payments-v4/dto/create-payments-v4.dto';
 
 @CommandHandler(CreatePaymentsV4Command)
 export class CreatePaymentHandler
-  implements
-    ICommandHandler<CreatePaymentsV4Command, CreatePaymentsV4CommandDto>
+  implements ICommandHandler<CreatePaymentsV4Command, CreatePaymentsV4Dto>
 {
   constructor(
     private prismaService: PrismaService,
@@ -18,7 +17,7 @@ export class CreatePaymentHandler
 
   async execute(
     command: CreatePaymentsV4Command,
-  ): Promise<CreatePaymentsV4CommandDto | null> {
+  ): Promise<CreatePaymentsV4Dto | any> {
     this.logger.info(`Criando payment: ${command}`);
 
     try {

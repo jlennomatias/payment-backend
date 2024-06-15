@@ -2,14 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
 import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
 import {
   DefaultError,
   NotFoundError,
   UnprocessableEntityError,
 } from 'src/erros';
 import { PixService } from 'src/pix/pix.service';
-import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.service';
 import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
@@ -17,16 +15,17 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetPaymentQuery } from './queries/get-payment/get-payment.query';
 import { plainToClass } from 'class-transformer';
 import { CreatePaymentsV4Command } from './commands/create-payment/create-payment.command';
+import { CancelPaymentsV4Command } from './commands/cancel-payment/cancel-payment.command';
+import { PaymentV4RulesService } from './business-rules/payment-rules.service';
 
 @Injectable()
 export class PaymentsV4Service {
   constructor(
-    private prismaService: PrismaService,
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
     private pixService: PixService,
     private webhookPaymentsService: WebhookPaymentsService,
-    private rulesPaymentV4Service: RulesPaymentV4Service,
+    private readonly paymentRulesService: PaymentV4RulesService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
@@ -36,11 +35,18 @@ export class PaymentsV4Service {
         `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
       );
 
-      // Regras de negocios
-      const existingDict =
-        await this.rulesPaymentV4Service.rulesCreatePayments(
-          createPaymentsV4Dto,
-        );
+      this.logger.info(`Iniciando as regras de negócios`);
+
+      await this.paymentRulesService.validatePaymentDataAreEquals(
+        createPaymentsV4Dto,
+      );
+
+      const dictData = await this.paymentRulesService.validateDictData(
+        createPaymentsV4Dto.data[0].creditorAccount,
+        createPaymentsV4Dto.data[0].proxy,
+      );
+
+      console.log('olha o dict', JSON.stringify(dictData));
 
       // Criando pagamentos
 
@@ -81,10 +87,10 @@ export class PaymentsV4Service {
             authorisationFlow: dto?.authorisationFlow,
             qrCode: dto.qrCode,
             debtorAccount: {
-              ispb: existingDict.account.participant,
+              ispb: dictData.account.participant,
               issuer: '0001',
-              number: existingDict.account.accountNumber,
-              accountType: existingDict.account.accountType,
+              number: dictData.account.accountNumber,
+              accountType: dictData.account.accountType,
             },
             creditorAccount: {
               ispb: dto.creditorAccount.ispb,
@@ -99,7 +105,7 @@ export class PaymentsV4Service {
           this.logger.debug(`response payment: ${JSON.stringify(payment)}`);
 
           // Criando o Pix
-          const pixData = await this.pixService.createPix(dto, existingDict);
+          const pixData = await this.pixService.createPix(dto, dictData);
 
           // Acionando o webhook
           this.webhookPaymentsService.fetchDataAndUpdate(
@@ -176,39 +182,52 @@ export class PaymentsV4Service {
 
   async update(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
-      this.logger.info(`Iniciando o cancelamento do pagamento: ${id}`);
+      this.logger.info(
+        `Iniciando o cancelamento do pagamento: ${JSON.stringify(cancelPaymentsV4Dto)}`,
+      );
+      const query = plainToClass(GetPaymentQuery, { paymentId: id });
 
-      const payment = await this.prismaService.payment.findUnique({
-        where: { paymentId: id },
-      });
+      const payment = await this.queryBus.execute(query);
 
-      const reasonCancel =
-        await this.rulesPaymentV4Service.rulesCancelPayments(payment);
+      let reasonCancel = '';
+      if (payment.status === 'PDNG') {
+        reasonCancel = 'CANCELADO_PENDENCIA';
+      } else if (payment.status === 'SCHD') {
+        reasonCancel = 'CANCELADO_AGENDAMENTO';
+      } else if (payment.status === 'PATC') {
+        reasonCancel = 'CANCELADO_MULTIPLAS_ALCADAS';
+      } else {
+        throw new UnprocessableEntityError(
+          `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
+          `Pagamento não permite cancelamento`,
+          `Pagamento possui o status diferente de SCHD/PDNG/PATC`,
+        );
+      }
 
-      await this.prismaService.payment.update({
-        where: { paymentId: id },
-        data: {
-          status: cancelPaymentsV4Dto.data.status,
-          cancellation: {
-            create: {
-              reason: reasonCancel,
-              cancelledFrom:
-                cancelPaymentsV4Dto.data.cancelledFrom || 'INICIADORA',
-              cancelledByIdentification:
-                cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
-                  .identification,
-              cancelledByRel:
-                cancelPaymentsV4Dto.data.cancellation.cancelledBy.document.rel,
-            },
-          },
+      const command = plainToClass(CancelPaymentsV4Command, {
+        paymentId: id,
+        status: cancelPaymentsV4Dto.data.status,
+        cancellation: {
+          reason: reasonCancel,
+          cancelledFrom: cancelPaymentsV4Dto.data.cancelledFrom || 'INICIADORA',
+          cancelledByIdentification:
+            cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+              .identification,
+          cancelledByRel:
+            cancelPaymentsV4Dto.data.cancellation.cancelledBy.document.rel,
         },
       });
+      const affectedRows = await this.commandBus.execute(command);
+
+      if (!affectedRows) {
+        console.log('não achou pagamentos a serem alterados');
+      }
 
       this.logger.info(`Pagamento cancelado com sucesso`);
 
       return await this.findOne(id);
     } catch (error) {
-      this.logger.error(`Erro ao atualizar dado ${error}`);
+      this.logger.error(`Erro ao cancelar pagamento dado ${error}`);
       if (error.code === 'P2014') {
         throw new UnprocessableEntityError(
           `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
@@ -223,56 +242,75 @@ export class PaymentsV4Service {
 
   async updateAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
-      const paymentsUpdate = await this.prismaService.payment.findMany({
-        where: { consentId: id },
-      });
+      const query = plainToClass(GetPaymentQuery, { consentId: id });
 
-      const updatedPayments = [];
-      for (const payment of paymentsUpdate) {
+      const payments = await this.queryBus.execute(query);
+
+      const canceledPayments = [];
+
+      for (const payment of payments) {
         this.logger.info(`Cancelando o pagamento ${payment.paymentId}`);
 
-        const reasonCancel =
-          await this.rulesPaymentV4Service.rulesCancelPayments(payment);
-        try {
-          const updatedPayment = await this.prismaService.payment.update({
-            where: { paymentId: payment.paymentId },
-            data: {
+        if (
+          payment.status === 'SCHD' ||
+          payment.status === 'PDNG' ||
+          payment.status === 'PATC'
+        ) {
+          let reasonCancel = '';
+
+          if (payment.status === 'PDNG') {
+            reasonCancel = 'CANCELADO_PENDENCIA';
+          } else if (payment.status === 'SCHD') {
+            reasonCancel = 'CANCELADO_AGENDAMENTO';
+          } else if (payment.status === 'PATC') {
+            reasonCancel = 'CANCELADO_MULTIPLAS_ALCADAS';
+          }
+
+          try {
+            const command = plainToClass(CancelPaymentsV4Command, {
+              paymentId: payment.paymentId,
               status: cancelPaymentsV4Dto.data.status,
               cancellation: {
-                create: {
-                  reason: reasonCancel,
-                  cancelledFrom: 'INICIADORA',
-                  cancelledByIdentification:
-                    cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
-                      .identification,
-                  cancelledByRel:
-                    cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
-                      .rel,
-                },
+                reason: reasonCancel,
+                cancelledFrom:
+                  cancelPaymentsV4Dto.data.cancelledFrom || 'INICIADORA',
+                cancelledByIdentification:
+                  cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                    .identification,
+                cancelledByRel:
+                  cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                    .rel,
               },
-            },
-          });
-          updatedPayments.push(updatedPayment);
-        } catch (error) {
-          this.logger.error(`Erro ao cancelar o pagamento ${error.message}`);
+            });
+
+            const affectedRows = await this.commandBus.execute(command);
+
+            canceledPayments.push(affectedRows);
+          } catch (error) {
+            this.logger.error(`Erro ao cancelar o pagamento ${error.code}`);
+            if (error.code === 'P2025') {
+              throw new NotFoundError(
+                error.code,
+                `Payment with ID ${id} not found`,
+                error.meta?.message || `Payment with ID ${id} not found`,
+              );
+            }
+
+            if (error.code === 'P2023') {
+              throw new NotFoundError(
+                error.code,
+                `Payment with ID ${id} not found`,
+                error.meta.message,
+              );
+            }
+            throw error;
+          }
         }
       }
 
-      const payments = await this.prismaService.payment.findMany({
-        where: { consentId: id },
-        include: {
-          cancellation: {
-            select: {
-              cancelledAt: true,
-            },
-          },
-        },
-      });
-
-      return this.mapToCancellationPaymentV4ResponseDto(payments);
+      return this.mapToCancellationPaymentV4ResponseDto(canceledPayments);
     } catch (error) {
       this.logger.error(`Erro ao cancelar todos os pagamentos ${error}`);
-
       if (error.code === 'P2014') {
         throw new UnprocessableEntityError(
           `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,

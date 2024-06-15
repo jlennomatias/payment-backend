@@ -1,7 +1,7 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GetPaymentQuery } from './get-payment.query';
-import { GetPaymentsV4Dto } from 'src/payments-v4/queries/get-payment/get-payment-v4.dto';
+import { GetPaymentsV4Dto } from 'src/payments-v4/dto/get-payment-v4.dto';
 
 @QueryHandler(GetPaymentQuery)
 export class GetPaymentHandler

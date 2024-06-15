@@ -1,3 +1,4 @@
+import { CancelPaymentHandler } from './cancel-payment/cancel-payment.handler';
 import { CreatePaymentHandler } from './create-payment/create-payment.handler';
 
-export const CreateHandlers = [CreatePaymentHandler];
+export const CommandHandlers = [CreatePaymentHandler, CancelPaymentHandler];

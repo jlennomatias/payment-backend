@@ -6,34 +6,13 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
 @Injectable()
-export class RulesPaymentV4Service {
+export class PaymentV4RulesService {
   constructor(
     private pixService: PixService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
-  async rulesCreatePayments(
-    createPaymentsV4Dto: CreatePaymentsV4Dto,
-  ): Promise<any> {
-    this.logger.info(`Iniciando as regras de negócios`);
-
-    try {
-      await this.consentsAreEquals(createPaymentsV4Dto);
-      const dict = await this.dictExist(createPaymentsV4Dto.data[0].proxy);
-      await this.dictAccounts(
-        createPaymentsV4Dto.data[0].creditorAccount,
-        dict,
-      );
-
-      return dict;
-    } catch (error) {
-      this.logger.error(`Erro ao aplicar as regras de negócios`);
-
-      throw error;
-    }
-  }
-
-  async consentsAreEquals(
+  async validatePaymentDataAreEquals(
     createPaymentsV4Dto: CreatePaymentsV4Dto,
   ): Promise<boolean> {
     this.logger.info(`Verificando se os consentimentos são iguais`);
@@ -60,19 +39,17 @@ export class RulesPaymentV4Service {
       throw new UnprocessableEntityError(
         `DETALHE_PAGAMENTO_INVALIDO`,
         `Detalhe do pagamento invalido`,
-        `Proxy are not equal`,
+        `Proxy's are not equal`,
       );
     }
 
     return true;
   }
 
-  async dictExist(proxy: string) {
+  async validateDictData(creditorAccount: any, proxy: string): Promise<any> {
     this.logger.info(`Verificando se a chave pix existe`);
 
     const pixData = await this.pixService.getDict({
-      // Mock - cpf
-      payerId: '11223344556',
       key: proxy,
     });
 
@@ -84,53 +61,45 @@ export class RulesPaymentV4Service {
       );
     }
 
-    this.logger.info('imprimindo esse log', pixData);
-    return pixData;
-  }
-
-  async dictAccounts(creditorAccount: any, pixData: any) {
     this.logger.info(
       `Verificando se creditorAccount são iguais: ${creditorAccount}, ${pixData}`,
     );
 
-    const findDifferences = (acc1: any, acc2: any) => {
-      const differences: any = {};
-      if (acc1.ispb !== acc2.ispb)
-        differences.ispb = { expected: acc1.ispb, actual: acc2.ispb };
-      if (acc1.issuer !== acc2.issuer)
-        differences.issuer = {
-          expected: acc1.issuer,
-          actual: acc2.issuer,
-        };
-      if (acc1.number !== acc2.number)
-        differences.number = {
-          expected: acc1.number,
-          actual: acc2.number,
-        };
-      if (acc1.accountType !== acc2.accountType)
-        differences.accountType = {
-          expected: acc1.accountType,
-          actual: acc2.accountType,
-        };
-
-      this.logger.info(`Campos diferentes: ${differences}`);
-
-      if (Object.keys(differences).length === 0) {
-        return [];
-      } else {
-        throw differences;
-      }
-    };
-
     try {
-      const allcreditorAccountsDictAreEqual = findDifferences(creditorAccount, {
-        ispb: pixData.account.participant,
-        number: pixData.account.accountNumber,
-        accountType: pixData.account.accountType,
-        issuer: '0001',
-      });
+      const allcreditorAccountsDictAreEqual = (creditorAccount: any) => {
+        const differences: any = {};
+        if (creditorAccount.ispb !== pixData.account.participant)
+          differences.ispb = {
+            expected: creditorAccount.ispb,
+            actual: pixData.account.participant,
+          };
+        if (creditorAccount.issuer !== '0001')
+          differences.issuer = {
+            expected: creditorAccount.issuer,
+            actual: '0001',
+          };
+        if (creditorAccount.number !== pixData.account.accountNumber)
+          differences.number = {
+            expected: creditorAccount.number,
+            actual: pixData.account.accountNumber,
+          };
+        if (creditorAccount.accountType !== pixData.account.accountType)
+          differences.accountType = {
+            expected: creditorAccount.accountType,
+            actual: pixData.account.accountType,
+          };
+
+        this.logger.info(`Campos diferentes: ${differences}`);
+
+        if (Object.keys(differences).length === 0) {
+          return [];
+        } else {
+          throw differences;
+        }
+      };
 
       this.logger.info(`comparando dados: ${allcreditorAccountsDictAreEqual}`);
+      return pixData;
     } catch (error) {
       throw new UnprocessableEntityError(
         `DETALHE_PAGAMENTO_INVALIDO`,

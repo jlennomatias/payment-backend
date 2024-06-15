@@ -7,7 +7,8 @@ import { RulesPaymentV4Module } from 'src/rules-payment-v4/rules-payment-v4.modu
 import { WebhookPaymentsModule } from 'src/webhook-payments/webhook-payments.module';
 import { CqrsModule } from '@nestjs/cqrs';
 import { QueryHandlers } from './queries';
-import { CreateHandlers } from './commands';
+import { CommandHandlers } from './commands';
+import { PaymentV4RulesService } from './business-rules/payment-rules.service';
 
 @Module({
   imports: [
@@ -18,6 +19,11 @@ import { CreateHandlers } from './commands';
     CqrsModule,
   ],
   controllers: [PaymentsV4Controller],
-  providers: [PaymentsV4Service, ...QueryHandlers, ...CreateHandlers],
+  providers: [
+    PaymentsV4Service,
+    PaymentV4RulesService,
+    ...QueryHandlers,
+    ...CommandHandlers,
+  ],
 })
 export class PaymentsV4Module {}
