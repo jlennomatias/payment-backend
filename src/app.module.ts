@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { PaymentsV4Module } from './payments-v4/payments-v4.module';
 import { AutomaticPaymentsV1Module } from './automatic-payments-v1/automatic-payments-v1.module';
 // import { KeycloakModule } from './keycloak/keycloak.module';
@@ -8,6 +8,8 @@ import { WebhookPaymentsModule } from './webhook-payments/webhook-payments.modul
 import { LoggingModule } from './logging.module';
 import { HttpModule } from './http/http.module';
 import { ExternalApiModule } from './external-api/external-api.module';
+import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
+import { BullModule } from '@nestjs/bull';
 
 @Module({
   imports: [
@@ -20,6 +22,13 @@ import { ExternalApiModule } from './external-api/external-api.module';
     LoggingModule,
     HttpModule,
     ExternalApiModule,
+    BullModule.forRoot({ redis: { host: 'redis', port: 6379 } }),
   ],
 })
-export class AppModule {}
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(CorrelationIdMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}

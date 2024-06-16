@@ -17,6 +17,10 @@ import { plainToClass } from 'class-transformer';
 import { CreatePaymentsV4Command } from './commands/create-payment/create-payment.command';
 import { CancelPaymentsV4Command } from './commands/cancel-payment/cancel-payment.command';
 import { PaymentV4RulesService } from './business-rules/payment-rules.service';
+import { REQUEST } from '@nestjs/core';
+import { Request } from 'express';
+import { UpdatePaymentsV4Dto } from './dto/update-payment-v4.dto';
+import { UpdatePaymentsV4Command } from './commands/update-payment/update-payment.command';
 
 @Injectable()
 export class PaymentsV4Service {
@@ -27,24 +31,33 @@ export class PaymentsV4Service {
     private webhookPaymentsService: WebhookPaymentsService,
     private readonly paymentRulesService: PaymentV4RulesService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    @Inject(REQUEST) private readonly request: Request,
   ) {}
 
   async create(createPaymentsV4Dto: CreatePaymentsV4Dto) {
+    const correlationId = this.request.correlationId;
+    this.logger.debug('Hello world log', { correlationId });
     try {
       this.logger.info(
         `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
       );
 
       this.logger.info(`Iniciando as regras de negócios`);
-
       await this.paymentRulesService.validatePaymentDataAreEquals(
         createPaymentsV4Dto,
       );
 
-      const dictData = await this.paymentRulesService.validateDictData(
-        createPaymentsV4Dto.data[0].creditorAccount,
-        createPaymentsV4Dto.data[0].proxy,
-      );
+      // Consultando o dict
+      const dictData = await this.pixService.getDict({
+        key: createPaymentsV4Dto.data[0].proxy,
+      });
+
+      console.log('response do dict: ', dictData);
+
+      // const dictData = await this.paymentRulesService.validateDictData(
+      //   createPaymentsV4Dto.data[0].creditorAccount,
+      //   createPaymentsV4Dto.data[0].proxy,
+      // );
 
       console.log('olha o dict', JSON.stringify(dictData));
 
@@ -70,7 +83,6 @@ export class PaymentsV4Service {
 
           const command = plainToClass(CreatePaymentsV4Command, {
             consentId: dto.consentId,
-            pixId: null,
             proxy: dto.proxy,
             endToEndId: dto.endToEndId,
             ibgeTownCode: dto.ibgeTownCode,
@@ -180,7 +192,7 @@ export class PaymentsV4Service {
     }
   }
 
-  async update(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
+  async cancel(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
       this.logger.info(
         `Iniciando o cancelamento do pagamento: ${JSON.stringify(cancelPaymentsV4Dto)}`,
@@ -223,9 +235,11 @@ export class PaymentsV4Service {
         console.log('não achou pagamentos a serem alterados');
       }
 
-      this.logger.info(`Pagamento cancelado com sucesso`);
+      this.logger.info(
+        `Pagamento cancelado com sucesso: ${JSON.stringify(affectedRows)}`,
+      );
 
-      return await this.findOne(id);
+      return this.mapToPaymentV4ResponseDto(affectedRows);
     } catch (error) {
       this.logger.error(`Erro ao cancelar pagamento dado ${error}`);
       if (error.code === 'P2014') {
@@ -240,7 +254,7 @@ export class PaymentsV4Service {
     }
   }
 
-  async updateAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
+  async cancelAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
       const query = plainToClass(GetPaymentQuery, { consentId: id });
 
@@ -319,6 +333,45 @@ export class PaymentsV4Service {
         );
       }
       throw error;
+    }
+  }
+
+  async update(id: string, updateCreatePaymentsV4Dto: UpdatePaymentsV4Dto) {
+    try {
+      this.logger.info(
+        `Iniciando a atualização do pagamento: ${JSON.stringify(updateCreatePaymentsV4Dto)}`,
+      );
+
+      const command = plainToClass(UpdatePaymentsV4Command, {
+        paymentId: id,
+        ...updateCreatePaymentsV4Dto,
+      });
+      const affectedRows = await this.commandBus.execute(command);
+
+      if (!affectedRows) {
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+        );
+      }
+
+      this.logger.info(
+        `Pagamento cancelado com sucesso: ${JSON.stringify(affectedRows)}`,
+      );
+
+      return affectedRows;
+    } catch (error) {
+      this.logger.error(`Erro ao cancelar pagamento dado ${error}`);
+      if (error.code === 'P2014') {
+        throw new UnprocessableEntityError(
+          `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
+          `Pagamento não permite cancelamento`,
+          `Pagamento ja consta com status cancelado`,
+        );
+      }
+
+      return this.mapToPaymentV4ResponseError(error);
     }
   }
 

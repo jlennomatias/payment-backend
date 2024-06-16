@@ -1,54 +1,41 @@
-import { ICommandHandler, CommandHandler } from '@nestjs/cqrs';
+import { ICommandHandler, CommandHandler, EventBus } from '@nestjs/cqrs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Logger } from 'winston';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Inject } from '@nestjs/common';
-import { CancelPaymentsV4Dto } from 'src/payments-v4/dto/cancel-payments-v4.dto';
 import { UpdatePaymentsV4Command } from './update-payment.command';
+import { StatusUpdadeEvent } from 'src/webhook-payments/events/update-payment/update-status.event';
+import { UpdatePaymentsV4Dto } from 'src/payments-v4/dto/update-payment-v4.dto';
 
 @CommandHandler(UpdatePaymentsV4Command)
-export class CancelPaymentHandler
-  implements ICommandHandler<UpdatePaymentsV4Command, CancelPaymentsV4Dto>
+export class UpdatePaymentHandler
+  implements ICommandHandler<UpdatePaymentsV4Command, UpdatePaymentsV4Dto>
 {
   constructor(
-    private prismaService: PrismaService,
+    private readonly prismaService: PrismaService,
+    private readonly eventBus: EventBus,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
   async execute(
     command: UpdatePaymentsV4Command,
-  ): Promise<CancelPaymentsV4Dto | any> {
-    this.logger.info(`Cancelando payment: ${command}`);
+  ): Promise<UpdatePaymentsV4Dto | any> {
+    this.logger.info(`Update payment: ${JSON.stringify(command)}`);
 
     try {
       const payment = await this.prismaService.payment.update({
         where: { paymentId: command.paymentId },
-        data: command,
-        include: {
-          payment: {
-            select: {
-              amount: true,
-              currency: true,
-            },
-          },
-          debtorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          creditorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
+        data: {
+          status: command.status,
+          pixId: command.pixId,
+          transactionIdentification: command.transactionIdentification,
         },
       });
+
+      // Pulicar evento após salvar no banco de dados
+      await this.eventBus.publish(
+        new StatusUpdadeEvent(command.paymentId, command.status),
+      );
 
       return payment;
     } catch (error) {

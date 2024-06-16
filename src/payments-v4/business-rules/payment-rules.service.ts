@@ -46,12 +46,8 @@ export class PaymentV4RulesService {
     return true;
   }
 
-  async validateDictData(creditorAccount: any, proxy: string): Promise<any> {
+  async validateDictData(creditorAccount: any, dictData: string): Promise<any> {
     this.logger.info(`Verificando se a chave pix existe`);
-
-    const pixData = await this.pixService.getDict({
-      key: proxy,
-    });
 
     if (pixData.status === 404) {
       throw new UnprocessableEntityError(

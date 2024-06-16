@@ -65,9 +65,9 @@ export class PixService {
       return response;
     } catch (error) {
       this.logger.error(
-        `Ocorreu um erro ao consultar o dict: ${error?.response?.data || error.code}`,
+        `Ocorreu um erro ao consultar o dict: ${error}, ${error.code}`,
       );
-      return error?.response?.data || error.code;
+      return error?.response?.data || error.code || error.status;
     }
   }
 }

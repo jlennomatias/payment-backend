@@ -1,10 +1,11 @@
-import { ICommandHandler, CommandHandler } from '@nestjs/cqrs';
+import { ICommandHandler, CommandHandler, EventBus } from '@nestjs/cqrs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePaymentsV4Command } from './create-payment.command';
 import { Logger } from 'winston';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Inject } from '@nestjs/common';
 import { CreatePaymentsV4Dto } from 'src/payments-v4/dto/create-payments-v4.dto';
+import { StatusUpdadeEvent } from 'src/webhook-payments/events/update-payment/update-status.event';
 
 @CommandHandler(CreatePaymentsV4Command)
 export class CreatePaymentHandler
@@ -12,6 +13,7 @@ export class CreatePaymentHandler
 {
   constructor(
     private prismaService: PrismaService,
+    private readonly eventBus: EventBus,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
@@ -24,7 +26,6 @@ export class CreatePaymentHandler
       const payment = await this.prismaService.payment.create({
         data: {
           consentId: command.consentId,
-          pixId: '',
           proxy: command.proxy,
           endToEndId: command.endToEndId,
           ibgeTownCode: command.ibgeTownCode,
@@ -82,8 +83,22 @@ export class CreatePaymentHandler
               accountType: true,
             },
           },
+          cancellation: {
+            select: {
+              reason: true,
+              cancelledFrom: true,
+              cancelledAt: true,
+              cancelledByIdentification: true,
+              cancelledByRel: true,
+            },
+          },
         },
       });
+
+      // Pulicar evento após salvar no banco de dados
+      await this.eventBus.publish(
+        new StatusUpdadeEvent(payment.paymentId, payment.status),
+      );
 
       return payment;
     } catch (error) {

@@ -16,7 +16,7 @@ datasource db {
 model Payment {
   paymentId                 String           @id @default(auto()) @map("_id") @db.ObjectId
   consentId                 String
-  pixId                     String
+  pixId                     String?
   endToEndId                String
   creationDateTime          DateTime         @default(now())
   statusUpdateDateTime      DateTime         @updatedAt

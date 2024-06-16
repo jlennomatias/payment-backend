@@ -58,6 +58,15 @@ export class CancelPaymentHandler
               accountType: true,
             },
           },
+          cancellation: {
+            select: {
+              reason: true,
+              cancelledFrom: true,
+              cancelledAt: true,
+              cancelledByIdentification: true,
+              cancelledByRel: true,
+            },
+          },
         },
       });
 
