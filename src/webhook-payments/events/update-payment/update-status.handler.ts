@@ -1,18 +1,27 @@
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { StatusUpdadeEvent } from './update-status.event';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { InjectQueue, Process, Processor } from '@nestjs/bull';
+import { Job, Queue } from 'bull';
 
 @EventsHandler(StatusUpdadeEvent)
+@Processor('payment')
 export class StatusUpdateHandler implements IEventHandler<StatusUpdadeEvent> {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+
+    @InjectQueue('payment')
+    private readonly queue: Queue,
+  ) {}
 
   async handle(event: StatusUpdadeEvent) {
-    const payment = await this.prismaService.payment.findUnique({
-      where: { paymentId: event.paymentId },
-    });
+    await this.queue.add('update-status-payment', event);
+  }
 
-    console.log(
-      `Alterou o status do payment ${event.paymentId} para ${event.status}, dados do payment: ${payment}`,
-    );
+  @Process('update-status-payment')
+  async process(job: Job<StatusUpdadeEvent>) {
+    const event = job.data;
+
+    console.log('Acionando o webhook da finansystech', event);
   }
 }

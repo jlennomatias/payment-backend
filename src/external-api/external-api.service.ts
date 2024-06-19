@@ -1,23 +1,31 @@
 // src/external-api/external-api.service.ts
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '../http/http.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ExternalApiService {
-  constructor(private readonly httpService: HttpService) {}
+  private readonly apiBaseUrl: string;
+
+  constructor(
+    private readonly httpService: HttpService,
+    config: ConfigService,
+  ) {
+    this.apiBaseUrl = config.get('PIX_API_BASE_URL');
+  }
 
   async createPix(data: any): Promise<any> {
-    const url = 'http://localhost:3030/pix';
+    const url = `${this.apiBaseUrl}/pix`;
     return await this.httpService.post<any>(url, data);
   }
 
-  async getPix(pixId: number): Promise<any> {
-    const url = `http://localhost:3030/pix/${pixId}`;
+  async getPix(pixId: string): Promise<any> {
+    const url = `${this.apiBaseUrl}/pix/${pixId}`;
     return await this.httpService.get<any>(url);
   }
 
-  async deletePix(pixId: number): Promise<any> {
-    const url = `http://localhost:3030/pix/${pixId}`;
+  async deletePix(pixId: string): Promise<any> {
+    const url = `${this.apiBaseUrl}/pix/${pixId}`;
     return await this.httpService.delete<any>(url);
   }
 
@@ -27,7 +35,7 @@ export class ExternalApiService {
   }
 
   async getDictData(data: any): Promise<any> {
-    const url = `http://localhost:3030/pix/v1/dict/v2/key`;
+    const url = `${this.apiBaseUrl}/pix/v1/dict/v2/key`;
     return await this.httpService.post<any>(url, data);
   }
 }

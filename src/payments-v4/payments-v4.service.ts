@@ -8,7 +8,6 @@ import {
   UnprocessableEntityError,
 } from 'src/erros';
 import { PixService } from 'src/pix/pix.service';
-import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -21,6 +20,7 @@ import { REQUEST } from '@nestjs/core';
 import { Request } from 'express';
 import { UpdatePaymentsV4Dto } from './dto/update-payment-v4.dto';
 import { UpdatePaymentsV4Command } from './commands/update-payment/update-payment.command';
+import { PaymentScheduler } from './payments.scheduler';
 
 @Injectable()
 export class PaymentsV4Service {
@@ -28,7 +28,8 @@ export class PaymentsV4Service {
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
     private pixService: PixService,
-    private webhookPaymentsService: WebhookPaymentsService,
+
+    private readonly paymentScheduler: PaymentScheduler,
     private readonly paymentRulesService: PaymentV4RulesService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
     @Inject(REQUEST) private readonly request: Request,
@@ -42,7 +43,7 @@ export class PaymentsV4Service {
         `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
       );
 
-      this.logger.info(`Iniciando as regras de negócios`);
+      this.logger.debug(`Iniciando as regras de negócios`);
       await this.paymentRulesService.validatePaymentDataAreEquals(
         createPaymentsV4Dto,
       );
@@ -52,20 +53,17 @@ export class PaymentsV4Service {
         key: createPaymentsV4Dto.data[0].proxy,
       });
 
-      console.log('response do dict: ', dictData);
-
-      // const dictData = await this.paymentRulesService.validateDictData(
-      //   createPaymentsV4Dto.data[0].creditorAccount,
-      //   createPaymentsV4Dto.data[0].proxy,
-      // );
-
-      console.log('olha o dict', JSON.stringify(dictData));
+      await this.paymentRulesService.validateDictData(
+        createPaymentsV4Dto.data[0].creditorAccount,
+        createPaymentsV4Dto.data[0].proxy,
+        dictData,
+      );
 
       // Criando pagamentos
 
       const payments = await Promise.all(
         createPaymentsV4Dto.data.map(async (dto) => {
-          this.logger.info(`Validando datas`);
+          this.logger.debug(`Validando datas`);
           const datePayment = dto.endToEndId
             .substring(9, 17)
             .replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
@@ -119,8 +117,8 @@ export class PaymentsV4Service {
           // Criando o Pix
           const pixData = await this.pixService.createPix(dto, dictData);
 
-          // Acionando o webhook
-          this.webhookPaymentsService.fetchDataAndUpdate(
+          // Acionando o cron para alteração do status
+          this.paymentScheduler.startCheckingPayment(
             pixData.transactionId,
             payment.paymentId,
             payment.status,
@@ -336,15 +334,15 @@ export class PaymentsV4Service {
     }
   }
 
-  async update(id: string, updateCreatePaymentsV4Dto: UpdatePaymentsV4Dto) {
+  async update(id: string, updatePaymentsV4Dto: UpdatePaymentsV4Dto) {
     try {
       this.logger.info(
-        `Iniciando a atualização do pagamento: ${JSON.stringify(updateCreatePaymentsV4Dto)}`,
+        `Iniciando a atualização do pagamento: ${JSON.stringify(updatePaymentsV4Dto)}`,
       );
 
       const command = plainToClass(UpdatePaymentsV4Command, {
         paymentId: id,
-        ...updateCreatePaymentsV4Dto,
+        ...updatePaymentsV4Dto,
       });
       const affectedRows = await this.commandBus.execute(command);
 
@@ -356,18 +354,21 @@ export class PaymentsV4Service {
         );
       }
 
-      this.logger.info(
-        `Pagamento cancelado com sucesso: ${JSON.stringify(affectedRows)}`,
-      );
-
       return affectedRows;
     } catch (error) {
-      this.logger.error(`Erro ao cancelar pagamento dado ${error}`);
+      this.logger.error(`Erro ao atualizar o pagamento dado ${error}`);
       if (error.code === 'P2014') {
-        throw new UnprocessableEntityError(
-          `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
-          `Pagamento não permite cancelamento`,
-          `Pagamento ja consta com status cancelado`,
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+        );
+      }
+      if (error.code === 'P2025') {
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
         );
       }
 

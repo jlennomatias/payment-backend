@@ -5,7 +5,6 @@ import { Logger } from 'winston';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Inject } from '@nestjs/common';
 import { CreatePaymentsV4Dto } from 'src/payments-v4/dto/create-payments-v4.dto';
-import { StatusUpdadeEvent } from 'src/webhook-payments/events/update-payment/update-status.event';
 
 @CommandHandler(CreatePaymentsV4Command)
 export class CreatePaymentHandler
@@ -94,11 +93,6 @@ export class CreatePaymentHandler
           },
         },
       });
-
-      // Pulicar evento após salvar no banco de dados
-      await this.eventBus.publish(
-        new StatusUpdadeEvent(payment.paymentId, payment.status),
-      );
 
       return payment;
     } catch (error) {

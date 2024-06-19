@@ -51,7 +51,7 @@ export class PixService {
     return result;
   }
 
-  async getPix(id: number): Promise<GetDictDto> {
+  async getPix(id: string): Promise<GetDictDto> {
     const result = await this.externalApiService.getPix(id);
     return result;
   }

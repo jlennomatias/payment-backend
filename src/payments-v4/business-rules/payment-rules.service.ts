@@ -1,14 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { UnprocessableEntityError } from 'src/erros';
 import { CreatePaymentsV4Dto } from 'src/payments-v4/dto/create-payments-v4.dto';
-import { PixService } from 'src/pix/pix.service';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
 @Injectable()
 export class PaymentV4RulesService {
   constructor(
-    private pixService: PixService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
@@ -46,7 +44,11 @@ export class PaymentV4RulesService {
     return true;
   }
 
-  async validateDictData(creditorAccount: any, dictData: string): Promise<any> {
+  async validateDictData(
+    creditorAccount: any,
+    proxy: string,
+    pixData: any,
+  ): Promise<any> {
     this.logger.info(`Verificando se a chave pix existe`);
 
     if (pixData.status === 404) {
@@ -95,7 +97,7 @@ export class PaymentV4RulesService {
       };
 
       this.logger.info(`comparando dados: ${allcreditorAccountsDictAreEqual}`);
-      return pixData;
+      return true;
     } catch (error) {
       throw new UnprocessableEntityError(
         `DETALHE_PAGAMENTO_INVALIDO`,

@@ -52,8 +52,6 @@ export class PaymentsV4Controller {
     @Param('id') id: string,
     @Body() updatePaymentsV4Dto: UpdatePaymentsV4Dto,
   ) {
-    console.log('chama fio');
-
     return this.paymentsV4Service.update(id, updatePaymentsV4Dto);
   }
 }

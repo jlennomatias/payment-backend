@@ -23,21 +23,28 @@ export class UpdatePaymentHandler
     this.logger.info(`Update payment: ${JSON.stringify(command)}`);
 
     try {
-      const payment = await this.prismaService.payment.update({
+      const paymentQuery = await this.prismaService.payment.findUniqueOrThrow({
         where: { paymentId: command.paymentId },
-        data: {
-          status: command.status,
-          pixId: command.pixId,
-          transactionIdentification: command.transactionIdentification,
-        },
       });
+      if (paymentQuery) {
+        const payment = await this.prismaService.payment.update({
+          where: { paymentId: command.paymentId },
+          data: {
+            status: command.status,
+            pixId: command.pixId,
+            transactionIdentification: command.transactionIdentification,
+          },
+        });
 
-      // Pulicar evento após salvar no banco de dados
-      await this.eventBus.publish(
-        new StatusUpdadeEvent(command.paymentId, command.status),
-      );
+        if (command.status) {
+          // Pulicar evento após salvar no banco de dados
+          await this.eventBus.publish(
+            new StatusUpdadeEvent(command.paymentId, command.status),
+          );
+        }
 
-      return payment;
+        return payment;
+      }
     } catch (error) {
       throw error;
     }

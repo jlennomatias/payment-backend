@@ -8,24 +8,32 @@ CREATE DATABASE payments;
 CREATE DATABASE pix;
 \c pix;
 
--- -- Criação da base "customers"
--- CREATE DATABASE customers;
+CREATE TABLE "pix" (
+    "transactionId" SERIAL NOT NULL,
+    "creationDateTime" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "statusUpdateDateTime" TIMESTAMP(3) NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "clientCode" TEXT NOT NULL,
+    "debitAccount" TEXT NOT NULL,
+    "debitBranch" INTEGER NOT NULL,
+    "debitTaxId" TEXT NOT NULL,
+    "debitAccountTyp" TEXT NOT NULL,
+    "debitName" TEXT NOT NULL,
+    "creditKey" TEXT,
+    "creditBank" TEXT NOT NULL,
+    "creditAccount" TEXT NOT NULL,
+    "creditBranch" INTEGER NOT NULL,
+    "creditTaxId" TEXT NOT NULL,
+    "creditAccountTyp" TEXT NOT NULL,
+    "creditName" TEXT NOT NULL,
+    "endToEndId" TEXT NOT NULL,
+    "initiationType" TEXT NOT NULL,
+    "remittanceInformation" TEXT NOT NULL,
+    "paymentType" TEXT NOT NULL,
+    "urgency" TEXT NOT NULL,
+    "transactionType" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "error" BOOLEAN NOT NULL,
 
--- \c customers;
--- -- Criação da tabela "customers"
--- CREATE TABLE customers (
---   id SERIAL PRIMARY KEY,
---   name VARCHAR(255),
---   email VARCHAR(255),
---   cpf VARCHAR(255),
---   cnpj VARCHAR(255),
---   issuer VARCHAR(255),
---   numberAccount VARCHAR(255),
---   accountType VARCHAR(255),
---   amount VARCHAR(255)
--- );
-
--- INSERT INTO customers (name, email, cpf, cnpj, issuer, numberAccount, accountType, amount) VALUES
---   ('joao', 'joao@example.com', '12345678901', '', '0001', '12345678', 'CC', '100'),
---   ('maria', 'maria@example.com', '12345678902', '', '0001', '12345678', 'CC', '1000'),
---   ('zezinho', 'zezinho@example.com', '12345678903', '50685362000135', '0001', '3333333', 'CC', '10000');
+    CONSTRAINT "pix_pkey" PRIMARY KEY ("transactionId")
+);
