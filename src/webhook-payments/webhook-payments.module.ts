@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { WebhookPaymentsService } from './webhook-payments.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { EventHandlers } from './events';
@@ -15,7 +15,12 @@ import { QueueConsumers } from './queues';
     BullModule.registerQueue({ name: 'payment' }),
     BullModule.registerQueue({ name: 'webhooks' }),
   ],
-  providers: [WebhookPaymentsService, ...EventHandlers, ...QueueConsumers],
+  providers: [
+    Logger,
+    WebhookPaymentsService,
+    ...EventHandlers,
+    ...QueueConsumers,
+  ],
   exports: [WebhookPaymentsService],
 })
 export class WebhookPaymentsModule {}

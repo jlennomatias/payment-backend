@@ -38,4 +38,17 @@ export class ExternalApiService {
     const url = `${this.apiBaseUrl}/pix/v1/dict/v2/key`;
     return await this.httpService.post<any>(url, data);
   }
+
+  async postWebhookPayment(paymentId: string, data: any): Promise<any> {
+    const url = `${this.apiBaseUrl}/payments/v4/pix/payments/${paymentId}`;
+    return await this.httpService.post<any>(url, data);
+  }
+
+  async postWebhookRecurringPayment(
+    recurringPaymentId: string,
+    data: any,
+  ): Promise<any> {
+    const url = `${this.apiBaseUrl}/automatic-payments/{versionApi}/pix/recurring-payments/${recurringPaymentId}`;
+    return await this.httpService.post<any>(url, data);
+  }
 }

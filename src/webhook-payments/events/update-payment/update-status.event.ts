@@ -1,6 +1,6 @@
 export class StatusUpdadeEvent {
   constructor(
     public paymentId: string,
-    public status: string,
+    public timestamp: string,
   ) {}
 }

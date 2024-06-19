@@ -1,11 +1,9 @@
 import { ICommandHandler, CommandHandler, EventBus } from '@nestjs/cqrs';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Logger } from 'winston';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-import { Inject } from '@nestjs/common';
 import { UpdatePaymentsV4Command } from './update-payment.command';
 import { StatusUpdadeEvent } from 'src/webhook-payments/events/update-payment/update-status.event';
 import { UpdatePaymentsV4Dto } from 'src/payments-v4/dto/update-payment-v4.dto';
+import { Logger } from '@nestjs/common';
 
 @CommandHandler(UpdatePaymentsV4Command)
 export class UpdatePaymentHandler
@@ -14,13 +12,16 @@ export class UpdatePaymentHandler
   constructor(
     private readonly prismaService: PrismaService,
     private readonly eventBus: EventBus,
-    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    private readonly logger: Logger,
   ) {}
 
   async execute(
     command: UpdatePaymentsV4Command,
   ): Promise<UpdatePaymentsV4Dto | any> {
-    this.logger.info(`Update payment: ${JSON.stringify(command)}`);
+    function dataFormat(params: any) {
+      return params.split('.')[0] + 'Z';
+    }
+    this.logger.log(`Update payment: ${JSON.stringify(command)}`);
 
     try {
       const paymentQuery = await this.prismaService.payment.findUniqueOrThrow({
@@ -39,7 +40,10 @@ export class UpdatePaymentHandler
         if (command.status) {
           // Pulicar evento após salvar no banco de dados
           await this.eventBus.publish(
-            new StatusUpdadeEvent(command.paymentId, command.status),
+            new StatusUpdadeEvent(
+              command.paymentId,
+              dataFormat(new Date(payment.statusUpdateDateTime).toISOString()),
+            ),
           );
         }
 

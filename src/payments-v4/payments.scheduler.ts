@@ -1,40 +1,35 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Logger, Injectable } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { ExternalApiService } from 'src/external-api/external-api.service';
-import { Logger } from 'winston';
 import { CommandBus } from '@nestjs/cqrs';
 import { UpdatePaymentsV4Command } from './commands/update-payment/update-payment.command';
 import { plainToClass } from 'class-transformer';
 
 @Injectable()
 export class PaymentScheduler {
-  private readonly desiredStatus = 'ACSC';
-
   constructor(
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly externalApiService: ExternalApiService,
     private readonly commandBus: CommandBus,
-    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    private readonly logger: Logger,
   ) {}
 
   startCheckingPayment(pixId: string, paymentId: string, status: string) {
-    this.logger.info(
+    this.logger.log(
       `start the cron job with values pixId: ${pixId}, paymentId: ${paymentId}, status: ${status}`,
     );
     const jobName = `check-payment-status-${paymentId}`;
 
     // Adiciona o job ao SchedulerRegistry
     const interval = setInterval(async () => {
-      // const status = await this.paymentService.checkPaymentStatus(paymentId);
       const response = await this.externalApiService.getPix(pixId);
-      this.logger.info(
+      this.logger.log(
         `Current status for payment ${paymentId}: ${response.status}`,
       );
       const convertStatus = this.convertStatus(response.status);
 
-      if (convertStatus === this.desiredStatus) {
-        this.logger.info(
+      if (convertStatus === 'ACSC' || convertStatus === 'CANC') {
+        this.logger.log(
           `Desired status reached for payment ${paymentId}, stopping checks.`,
         );
         const command = plainToClass(UpdatePaymentsV4Command, {
@@ -43,7 +38,7 @@ export class PaymentScheduler {
         });
         const affectedRows = await this.commandBus.execute(command);
 
-        this.logger.info(`affectedRows ${affectedRows}`);
+        this.logger.log(`affectedRows ${JSON.stringify(affectedRows)}`);
         clearInterval(interval);
         this.schedulerRegistry.deleteInterval(jobName);
       }

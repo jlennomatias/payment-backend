@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { PaymentsV4Service } from './payments-v4.service';
 import { PaymentsV4Controller } from './payments-v4.controller';
 import { PrismaModule } from 'src/prisma/prisma.module';
@@ -26,6 +26,7 @@ import { ExternalApiModule } from 'src/external-api/external-api.module';
     PaymentsV4Service,
     PaymentV4RulesService,
     PaymentScheduler,
+    Logger,
     ...QueryHandlers,
     ...CommandHandlers,
   ],

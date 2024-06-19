@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
 import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
@@ -8,8 +8,8 @@ import {
   UnprocessableEntityError,
 } from 'src/erros';
 import { PixService } from 'src/pix/pix.service';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-import { Logger } from 'winston';
+// import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+// import { Logger } from 'winston';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetPaymentQuery } from './queries/get-payment/get-payment.query';
 import { plainToClass } from 'class-transformer';
@@ -27,11 +27,12 @@ export class PaymentsV4Service {
   constructor(
     private readonly queryBus: QueryBus,
     private readonly commandBus: CommandBus,
-    private pixService: PixService,
+    private readonly pixService: PixService,
+    private readonly logger: Logger,
 
     private readonly paymentScheduler: PaymentScheduler,
     private readonly paymentRulesService: PaymentV4RulesService,
-    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    // @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
     @Inject(REQUEST) private readonly request: Request,
   ) {}
 
@@ -39,7 +40,7 @@ export class PaymentsV4Service {
     const correlationId = this.request.correlationId;
     this.logger.debug('Hello world log', { correlationId });
     try {
-      this.logger.info(
+      this.logger.log(
         `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
       );
 
@@ -192,7 +193,7 @@ export class PaymentsV4Service {
 
   async cancel(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
-      this.logger.info(
+      this.logger.log(
         `Iniciando o cancelamento do pagamento: ${JSON.stringify(cancelPaymentsV4Dto)}`,
       );
       const query = plainToClass(GetPaymentQuery, { paymentId: id });
@@ -233,7 +234,7 @@ export class PaymentsV4Service {
         console.log('não achou pagamentos a serem alterados');
       }
 
-      this.logger.info(
+      this.logger.log(
         `Pagamento cancelado com sucesso: ${JSON.stringify(affectedRows)}`,
       );
 
@@ -261,7 +262,7 @@ export class PaymentsV4Service {
       const canceledPayments = [];
 
       for (const payment of payments) {
-        this.logger.info(`Cancelando o pagamento ${payment.paymentId}`);
+        this.logger.log(`Cancelando o pagamento ${payment.paymentId}`);
 
         if (
           payment.status === 'SCHD' ||
@@ -336,7 +337,7 @@ export class PaymentsV4Service {
 
   async update(id: string, updatePaymentsV4Dto: UpdatePaymentsV4Dto) {
     try {
-      this.logger.info(
+      this.logger.log(
         `Iniciando a atualização do pagamento: ${JSON.stringify(updatePaymentsV4Dto)}`,
       );
 
@@ -382,11 +383,11 @@ export class PaymentsV4Service {
       return params.split('.')[0] + 'Z';
     }
 
-    this.logger.info(`Mapeando a response`);
+    this.logger.log(`Mapeando a response`);
 
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
-      this.logger.info(
+      this.logger.log(
         `Transformar cada objeto da lista para o formato desejado`,
       );
 
@@ -442,7 +443,7 @@ export class PaymentsV4Service {
         }), // Torna opcional
       }));
     } else {
-      this.logger.info(`Transformar o objeto único para o formato desejado`);
+      this.logger.log(`Transformar o objeto único para o formato desejado`);
 
       data = {
         paymentId: payment.paymentId,
@@ -519,11 +520,11 @@ export class PaymentsV4Service {
       return params.split('.')[0] + 'Z';
     }
 
-    this.logger.info(`Mapeando a response`);
+    this.logger.log(`Mapeando a response`);
 
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
-      this.logger.info(
+      this.logger.log(
         `Transformar cada objeto da lista para o formato desejado`,
       );
       data = payment.map((item) => ({
@@ -533,7 +534,7 @@ export class PaymentsV4Service {
         ),
       }));
     } else {
-      this.logger.info(`Transformar o objeto único para o formato desejado`);
+      this.logger.log(`Transformar o objeto único para o formato desejado`);
 
       data = {
         paymentId: payment.paymentId,
@@ -559,7 +560,7 @@ export class PaymentsV4Service {
   }
 
   private mapToPaymentV4ResponseError(error): any {
-    this.logger.info(`Mapeando a saida de erro`);
+    this.logger.log(`Mapeando a saida de erro`);
 
     function dataFormat(params) {
       return params.split('.')[0] + 'Z';
