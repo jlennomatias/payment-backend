@@ -2,72 +2,82 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
 import { GetDictDto } from './dto/get-dict.dto';
+import {
+  AccountPaymentsType,
+  PaymentPriorityType,
+  PaymentStatusType,
+  PersonType,
+  localInstrument,
+} from 'utils/enum_pix';
 import { CreatePixDto } from './dto/create-pix.dto';
+import { ConfigService } from '@nestjs/config';
+import { PaymentTypeJ17 } from 'utils/enum_j17';
 
 @Injectable()
 export class PixService {
-  constructor(private httpService: HttpService) {}
+  constructor(
+    private httpService: HttpService,
+    private configService: ConfigService,
+  ) {}
+  private BASE_URI: string = this.configService.get<string>('BASE_URL');
 
   async createPix(data: any): Promise<any> {
-    console.log('- Iniciando a criação do pix');
+    let priorityPayment = PaymentPriorityType.PRIORITY;
+    let typePriorityPayment = PaymentPriorityType.PRIORITY;
 
-    const dataPix = await this.getDict({
-      // Mock - cpf
-      payerId: '11223344556',
-      key: data.proxy,
-    });
+    if (data.status == PaymentStatusType.SCHD) {
+      priorityPayment = 1;
+      typePriorityPayment = PaymentPriorityType.SCHEDULED;
+    }
 
-    console.log('-- Criando o body para o pix');
     const pix: CreatePixDto = {
-      amount: Number(data.payment.amount),
-      transactionIdentification: data.qrcode,
-      clientCode: data.transactionIdentification || '14588549',
-      debitParty: {
-        account: dataPix.data.account.accountNumber,
-        branch: dataPix.data.account.branch,
-        taxId: dataPix.data.owner.taxIdNumber,
-        accountType: dataPix.data.account.accountType,
-        name: dataPix.data.owner.name,
+      valor: data.payment.amount,
+      tipo: PaymentTypeJ17.TRANSFER,
+      pagador_ou_recebedor: true,
+      idReqSistemaCliente: data.paymentId,
+      tpIniciacao: localInstrument[data.localInstrument],
+      prioridadePagamento: priorityPayment,
+      tpPrioridadePagamento: typePriorityPayment,
+      finalidade: '0',
+      ispb_destino: data.creditorAccount.ispb,
+      pagador: {
+        tpPessoa: PersonType[data.debtorAccount.personType],
+        cpfCnpj: data.debtorAccount.cpfCnpj,
+        nome: data.debtorAccount.name,
+        nrAgencia: data.debtorAccount.issuer,
+        tpConta: AccountPaymentsType[data.debtorAccount.accountType],
+        nrConta: data.debtorAccount.number,
       },
-      creditParty: {
-        key: data.proxy,
-        bank: dataPix.data.account.participant,
-        account: data.creditorAccount.number,
-        branch: dataPix.data.account.branch,
-        taxId: '11223344556',
-        accountType: data.creditorAccount.accountType,
-        name: dataPix.data.owner.name,
+      recebedor: {
+        tpPessoa: PersonType[data.creditorAccount.personType],
+        cpfCnpj: data.creditorAccount.cpfCnpj,
+        nome: data.creditorAccount.name,
+        nrAgencia: data.creditorAccount.issuer,
+        tpConta: AccountPaymentsType[data.creditorAccount.accountType],
+        nrConta: data.creditorAccount.number,
       },
-      endToEndId: data.endToEndId,
-      initiationType: 'string',
-      remittanceInformation: data.remittanceInformation,
-      paymentType: data.status === 'SCHD' ? 'SCHEDULED' : 'IMMEDIATE',
-      urgency: 'HIGH',
-      transactionType: 'string',
     };
 
-    console.log('-- Efetuando a requisição createPix');
-    const result = await lastValueFrom(
-      this.httpService.post('http://localhost:3030/pix', pix),
-    );
-    console.log('-- Response da requisição createPix: ', result);
+    const token = await this.generateTokenPix();
 
-    return result.data;
+    const response = await lastValueFrom(
+      this.httpService.post(`${this.BASE_URI}/instant_payment`, pix, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }),
+    );
+
+    return response;
   }
 
-  async getPix(id: number): Promise<GetDictDto> {
-    const result = await lastValueFrom(
-      this.httpService.get(`http://localhost:3030/pix/${id}`),
-    );
-    return result.data;
-  }
-
-  async getDict(data: any): Promise<any> {
+  async validateProxyDebtor(data: any): Promise<any> {
     try {
-      console.log('- Consultando o dict');
+      console.log('- Consultando o proxy do debtor');
 
       const response = await lastValueFrom(
-        this.httpService.post(`http://localhost:3030/pix/v1/dict/v2/key`, data),
+        this.httpService.post(`${this.BASE_URI}/key/consult`, data),
       );
 
       return response;
@@ -77,6 +87,67 @@ export class PixService {
         error?.response?.data || error.code,
       );
       return error.response.data;
+    }
+  }
+
+  async getPix(id: number): Promise<GetDictDto> {
+    const token = await this.generateTokenPix();
+
+    const result = await lastValueFrom(
+      this.httpService.get(
+        `${this.BASE_URI}/instant_payment/details?idTransacao=${id}`,
+
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      ),
+    );
+    return result.data;
+  }
+
+  async getDict(data: any): Promise<any> {
+    try {
+      console.log('- Consultando o dict creditor');
+
+      const token = await this.generateTokenPix();
+
+      const response = await lastValueFrom(
+        this.httpService.get(`${this.BASE_URI}/key/consult`, {
+          data: data,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      );
+
+      return response;
+    } catch (error) {
+      console.error(
+        'Ocorreu um erro ao consultar o dict: ',
+        error?.response?.data || error.code,
+      );
+      return error.response.data;
+    }
+  }
+
+  async generateTokenPix(): Promise<any> {
+    try {
+      const request = {
+        client_id: this.configService.get<string>('CLIENT_ID'),
+        client_secret: this.configService.get<string>('CLIENT_SECRET'),
+      };
+
+      const response = await lastValueFrom(
+        this.httpService.post(`${this.BASE_URI}/auth`, request),
+      );
+
+      return response.data.access_token;
+    } catch (error) {
+      return error?.response?.data;
     }
   }
 }

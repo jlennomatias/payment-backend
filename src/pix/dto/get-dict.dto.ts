@@ -1,19 +1,15 @@
 export class GetDictDto {
-  key: string;
-  keyType: string;
-  account: {
-    branch: number;
-    accountNumber: string;
-    accountType: string;
-    participant: string;
-    openingDate: string;
-  };
-  owner: {
-    type: string;
-    taxIdNumber: string;
-    name: string;
-  };
-  endtoendid: string;
-  creationDate: string;
-  keyOwnershipDate: string;
+  chave: string;
+  tpChave: number;
+  ispb: number;
+  nrAgencia: string;
+  nrConta: string;
+  tpConta: number;
+  tpPessoa: number;
+  cpfCnpj: number;
+  nome: string;
+  dtHrCriacaoChave: string;
+  dtHrInicioPosseChave: string;
+  dtHrAberturaConta: string;
+  endToEndId: string;
 }

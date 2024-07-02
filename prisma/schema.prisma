@@ -9,12 +9,12 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Payment {
-  paymentId                 String           @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId                 String           @id @default(uuid()) @map("_id")
   consentId                 String
   pixId                     String
   endToEndId                String
@@ -42,52 +42,52 @@ model Payment {
 }
 
 model CreditorAccount {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  id          String  @id @default(uuid()) @map("_id")
   ispb        String
-  issuer      String
+  issuer      String?
   number      String
   accountType String
   Payment     Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
-  paymentId   String  @unique @db.ObjectId
+  paymentId   String  @unique
 
   @@map("creditor_accounts")
 }
 
 model DebtorAccount {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  id          String  @id @default(uuid()) @map("_id")
   ispb        String
-  issuer      String
+  issuer      String?
   number      String
   accountType String
   Payment     Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
-  paymentId   String  @unique @db.ObjectId
+  paymentId   String  @unique
 
   @@map("debtor_accounts")
 }
 
 model Cancellation {
-  id                        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id                        String   @id @default(uuid()) @map("_id")
   reason                    String
   cancelledFrom             String
   cancelledAt               DateTime @default(now())
   cancelledByIdentification String
   cancelledByRel            String
   Payment                   Payment  @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
-  paymentId                 String   @unique @db.ObjectId
+  paymentId                 String   @unique
 
   @@map("cancellations")
 }
 
 model PaymentDetail {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  id        String  @id @default(uuid()) @map("_id")
   amount    String
   currency  String
   Payment   Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
-  paymentId String  @unique @db.ObjectId
+  paymentId String  @unique
 }
 
 model AutomaticPayments {
-  recurringPaymentId                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  recurringPaymentId                    String    @id @default(uuid()) @map("_id")
   recurringConsentId                    String    @unique
   endToEndId                            String
   date                                  String

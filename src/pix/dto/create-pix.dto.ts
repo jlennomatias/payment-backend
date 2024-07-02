@@ -1,27 +1,29 @@
 export class CreatePixDto {
-  amount: number;
-  clientCode: string;
-  transactionIdentification?: string;
-  debitParty: {
-    account: string;
-    branch: number;
-    taxId: string;
-    accountType: string;
-    name: string;
+  valor: number;
+  tipo: string;
+  idReqSistemaCliente: string;
+  tpIniciacao: string;
+  prioridadePagamento: number;
+  tpPrioridadePagamento: number;
+  finalidade: string;
+  pagador_ou_recebedor: boolean;
+  ispb_destino: string;
+  pagador: {
+    // ispb: string;
+    tpPessoa: string;
+    cpfCnpj: string;
+    nome: string;
+    nrAgencia: string;
+    tpConta: string;
+    nrConta: string;
   };
-  creditParty: {
-    key: string;
-    bank: string;
-    account: string;
-    branch: number;
-    taxId: string;
-    accountType: string;
-    name: string;
+  recebedor: {
+    // ispb: string;
+    tpPessoa: string;
+    cpfCnpj: string;
+    nome: string;
+    nrAgencia: string;
+    tpConta: string;
+    nrConta: string;
   };
-  endToEndId: string;
-  initiationType: string;
-  remittanceInformation: string;
-  paymentType: string;
-  urgency: string;
-  transactionType: string;
 }

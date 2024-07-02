@@ -2,28 +2,29 @@ import { Injectable } from '@nestjs/common';
 import { UnprocessableEntityError } from 'src/erros';
 import { CreatePaymentsV4Dto } from 'src/payments-v4/dto/create-payments-v4.dto';
 import { PixService } from 'src/pix/pix.service';
+import {
+  findDifferencesBetweenAccounts,
+  transformValueEnumAccountType,
+} from 'utils/utils';
 
 @Injectable()
 export class RulesPaymentV4Service {
   constructor(private pixService: PixService) {}
 
-  async rulesCreatePayments(
-    createPaymentsV4Dto: CreatePaymentsV4Dto,
-  ): Promise<any> {
-    console.log('Iniciando as regras de negócios');
-    try {
-      await this.consentsAreEquals(createPaymentsV4Dto);
-      const dict = await this.dictExist(createPaymentsV4Dto.data[0].proxy);
-      await this.dictAccounts(
-        createPaymentsV4Dto.data[0].creditorAccount,
-        dict,
-      );
+  async validateProxyDebtor(proxy: string, cpfcnpj: string): Promise<boolean> {
+    const response = await this.pixService.validateProxyDebtor({
+      chave: proxy,
+      user_document: cpfcnpj,
+    });
 
-      return dict;
-    } catch (error) {
-      console.error('Erro ao aplicar as regras de negócios:');
-      throw error;
+    if (response.status != 200) {
+      throw new UnprocessableEntityError(
+        `DETALHE_PAGAMENTO_INVALIDO`,
+        `Detalhe do pagamento invalido`,
+        `Proxy with ID ${proxy} not found`,
+      );
     }
+    return response.data;
   }
 
   async consentsAreEquals(
@@ -59,69 +60,67 @@ export class RulesPaymentV4Service {
     return true;
   }
 
-  async dictExist(proxy: string) {
+  async dictExist(proxy: string, cpfCnpj: string) {
     console.log('Verificando se a chave pix existe');
 
-    const pixData = await this.pixService.getDict({
-      // Mock - cpf
-      payerId: '11223344556',
-      key: proxy,
+    const response = await this.pixService.getDict({
+      chave: proxy,
+      user_document: cpfCnpj,
     });
 
-    if (pixData.status === 404) {
+    const dict = response.data;
+
+    if (dict.length != 0) {
+      const dataDict = response.data.data;
+
+      return {
+        ispb: dataDict.ispb,
+        issuer: dataDict.nrAgencia,
+        number: dataDict.nrConta,
+        accountType: transformValueEnumAccountType(dataDict.tpConta),
+      };
+    }
+
+    const message = response.data.message;
+
+    if (message.includes('O CPF informado no header')) {
       throw new UnprocessableEntityError(
         `DETALHE_PAGAMENTO_INVALIDO`,
         `Detalhe do pagamento invalido`,
-        `Proxy with ID ${proxy} not found`,
+        `CPF/CNPJ is invalid`,
       );
     }
-    return pixData.data;
+
+    if (message.includes('Entidade não encontrada')) {
+      throw new UnprocessableEntityError(
+        `DETALHE_PAGAMENTO_INVALIDO`,
+        `Detalhe do pagamento invalido`,
+        `Proxy ${proxy} not found`,
+      );
+    }
+
+    throw new UnprocessableEntityError(
+      `FALHA_INFRAESTRUTURA`,
+      `Falha de infraestrutura`,
+      `Falha ao consultar DICT: proxy ${proxy}`,
+    );
   }
 
-  async dictAccounts(creditorAccount: any, pixData: any) {
+  async verifyAccountAndDict(creditorAccount: any, dictCreditor: any) {
     console.log('Verificando se creditorAccount são iguais');
 
-    const findDifferences = (acc1, acc2) => {
-      const differences: any = {};
-      if (acc1.ispb !== acc2.ispb)
-        differences.ispb = { expected: acc1.ispb, actual: acc2.ispb };
-      if (acc1.issuer !== acc2.issuer)
-        differences.issuer = {
-          expected: acc1.issuer,
-          actual: acc2.issuer,
-        };
-      if (acc1.number !== acc2.number)
-        differences.number = {
-          expected: acc1.number,
-          actual: acc2.number,
-        };
-      if (acc1.accountType !== acc2.accountType)
-        differences.accountType = {
-          expected: acc1.accountType,
-          actual: acc2.accountType,
-        };
-      console.log(differences);
-      if (Object.keys(differences).length === 0) {
-        return [];
-      } else {
-        throw differences;
-      }
-    };
-
     try {
-      const allcreditorAccountsDictAreEqual = findDifferences(creditorAccount, {
-        ispb: pixData.account.participant,
-        number: pixData.account.accountNumber,
-        accountType: pixData.account.accountType,
-        issuer: '0001',
-      });
+      const allcreditorAccountsDictAreEqual = findDifferencesBetweenAccounts(
+        creditorAccount,
+        dictCreditor,
+      );
 
       console.log('comparando dados: ', allcreditorAccountsDictAreEqual);
     } catch (error) {
       throw new UnprocessableEntityError(
         `DETALHE_PAGAMENTO_INVALIDO`,
         `Detalhe do pagamento inválido`,
-        `CreditorAccounts are not equal`,
+        `Invalid data Creditor account`,
       );
     }
   }

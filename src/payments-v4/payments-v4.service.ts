@@ -11,6 +11,7 @@ import {
 import { PixService } from 'src/pix/pix.service';
 import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.service';
 import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
+import { PaymentStatusType } from 'utils/enum_pix';
 
 @Injectable()
 export class PaymentsV4Service {
@@ -23,72 +24,78 @@ export class PaymentsV4Service {
 
   async create(createPaymentsV4Dto: CreatePaymentsV4Dto) {
     try {
-      console.log(
-        `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
+      await this.rulesPaymentV4Service.consentsAreEquals(createPaymentsV4Dto);
+
+      const firtPayment = createPaymentsV4Dto.data[0];
+
+      const dictCreditor = await this.rulesPaymentV4Service.dictExist(
+        firtPayment.proxy,
+        firtPayment.creditorAccount.cpfCnpj,
       );
 
-      // Regras de negocios
-      const existingDict =
-        await this.rulesPaymentV4Service.rulesCreatePayments(
-          createPaymentsV4Dto,
-        );
+      await this.rulesPaymentV4Service.verifyAccountAndDict(
+        {
+          ...firtPayment.creditorAccount,
+          issuer: dictCreditor.issuer,
+        },
+        dictCreditor,
+      );
 
       // Criando pagamentos
       const payments = await Promise.all(
         createPaymentsV4Dto.data.map(async (dto) => {
-          console.log('- Validando datas');
-
           const datePayment = dto.endToEndId
             .substring(9, 17)
             .replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
 
-          const currentDate = new Date().toISOString(); // Obtém a data atual
-          const dataAtual = currentDate.substring(0, 10);
+          const currentDate = new Date().toISOString().substring(0, 10);
 
-          console.log(`agora: ${dataAtual}, data do pagamento: ${datePayment}`);
-          dto.status = dataAtual >= datePayment ? 'RCVD' : 'SCHD';
-          console.log('status: ', dto.status);
+          const status =
+            currentDate >= datePayment
+              ? PaymentStatusType.RCVD
+              : PaymentStatusType.SCHD;
+          const date = datePayment;
 
-          dto.date = datePayment;
-
-          const payment = await this.prismaService.payment.create({
-            data: {
-              consentId: dto.consentId,
-              pixId: '',
-              proxy: dto.proxy,
-              endToEndId: dto.endToEndId,
-              ibgeTownCode: dto.ibgeTownCode,
-              status: dto.status,
-              date: dto.date,
-              localInstrument: dto.localInstrument,
-              cnpjInitiator: dto.cnpjInitiator,
-              payment: {
-                create: {
-                  amount: dto.payment.amount,
-                  currency: dto.payment.currency,
-                },
-              },
-              transactionIdentification: dto?.transactionIdentification,
-              remittanceInformation: dto.remittanceInformation,
-              authorisationFlow: dto?.authorisationFlow,
-              qrCode: dto.qrCode,
-              debtorAccount: {
-                create: {
-                  ispb: existingDict.account.participant || null,
-                  issuer: '0001',
-                  number: existingDict.account.accountNumber,
-                  accountType: existingDict.account.accountType,
-                },
-              },
-              creditorAccount: {
-                create: {
-                  ispb: dto.creditorAccount.ispb,
-                  issuer: dto.creditorAccount.issuer,
-                  number: dto.creditorAccount.number,
-                  accountType: dto.creditorAccount.accountType,
-                },
+          const paymentData = {
+            consentId: dto.consentId,
+            pixId: '',
+            proxy: dto.proxy,
+            endToEndId: dto.endToEndId,
+            ibgeTownCode: dto.ibgeTownCode,
+            status: status,
+            date: date,
+            localInstrument: dto.localInstrument,
+            cnpjInitiator: dto.cnpjInitiator,
+            payment: {
+              create: {
+                amount: dto.payment.amount,
+                currency: dto.payment.currency,
               },
             },
+            transactionIdentification: dto?.transactionIdentification,
+            remittanceInformation: dto.remittanceInformation,
+            authorisationFlow: dto?.authorisationFlow,
+            qrCode: dto.qrCode,
+            debtorAccount: {
+              create: {
+                ispb: dto.debtorAccount.ispb,
+                issuer: dto.debtorAccount.issuer || null,
+                number: dto.debtorAccount.number,
+                accountType: dto.debtorAccount.accountType,
+              },
+            },
+            creditorAccount: {
+              create: {
+                ispb: dto.creditorAccount.ispb,
+                issuer: dictCreditor.issuer,
+                number: dto.creditorAccount.number,
+                accountType: dto.creditorAccount.accountType,
+              },
+            },
+          };
+
+          const paymentDB = await this.prismaService.payment.create({
+            data: paymentData,
             include: {
               payment: {
                 select: {
@@ -116,17 +123,25 @@ export class PaymentsV4Service {
           });
 
           // Criando o Pix
-          const pixData = await this.pixService.createPix(dto);
+          await this.pixService.createPix({
+            ...dto,
+            creditorAccount: {
+              ...dto.creditorAccount,
+              issuer: dictCreditor.issuer,
+            },
+            paymentId: paymentDB.paymentId,
+            status: paymentDB.status,
+          });
 
           // Acionando o webhook
-          const webhook = this.webhookPaymentsService.fetchDataAndUpdate(
-            pixData.transactionId,
-            payment.paymentId,
-            payment.status,
-          );
-          console.log('retorno webhook', await webhook);
+          // const webhook = this.webhookPaymentsService.fetchDataAndUpdate(
+          //   pixData.transactionId,
+          //   payment.paymentId,
+          //   payment.status,
+          // );
+          // console.log('retorno webhook', await webhook);
 
-          return payment;
+          return paymentDB;
         }),
       );
 
