@@ -1,6 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { lastValueFrom } from 'rxjs';
+import { Logger, Injectable } from '@nestjs/common';
 import { GetDictDto } from './dto/get-dict.dto';
 import {
   AccountPaymentsType,
@@ -12,14 +10,18 @@ import {
 import { CreatePixDto } from './dto/create-pix.dto';
 import { ConfigService } from '@nestjs/config';
 import { PaymentTypeJ17 } from 'utils/enum_j17';
+import { ExternalApiService } from 'src/external-api/external-api.service';
+import { transformValueEnumAccountType } from 'utils/utils';
+import { UnprocessableEntityError } from 'src/erros';
+import { ErrorException } from 'src/exceptions/error.exception';
+import { ErrorsCode } from 'utils/enum_errors';
 
 @Injectable()
 export class PixService {
   constructor(
-    private httpService: HttpService,
-    private configService: ConfigService,
+    private externalApiService: ExternalApiService,
+    private readonly logger: Logger,
   ) {}
-  private BASE_URI: string = this.configService.get<string>('BASE_URL');
 
   async createPix(data: any): Promise<any> {
     let priorityPayment = PaymentPriorityType.PRIORITY;
@@ -58,96 +60,71 @@ export class PixService {
       },
     };
 
-    const token = await this.generateTokenPix();
+    this.logger.log(`Efetuando a requisição createPix`);
+    const result = await this.externalApiService.createPix(pix);
 
-    const response = await lastValueFrom(
-      this.httpService.post(`${this.BASE_URI}/instant_payment`, pix, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }),
-    );
+    console.log('result', result);
+    this.logger.log(`Response da requisição createPix:  ${result}`);
 
-    return response;
+    return result;
   }
 
-  async validateProxyDebtor(data: any): Promise<any> {
+  async getPix(id: string): Promise<GetDictDto> {
+    const result = await this.externalApiService.getPix(id);
+    return result;
+  }
+
+  async getDict(proxy: string, cpfCnpj: string): Promise<any> {
     try {
-      console.log('- Consultando o proxy do debtor');
+      this.logger.log(`Consultando o dict`);
 
-      const response = await lastValueFrom(
-        this.httpService.post(`${this.BASE_URI}/key/consult`, data),
+      const response = await this.externalApiService.getDictData({
+        chave: proxy,
+        user_document: cpfCnpj,
+      });
+
+      console.log('dict', response);
+
+      const dict = response.data;
+
+      if (dict.length != 0) {
+        const dataDict = response.data.data;
+
+        return {
+          ispb: dataDict.ispb,
+          issuer: dataDict.nrAgencia,
+          number: dataDict.nrConta,
+          accountType: transformValueEnumAccountType(dataDict.tpConta),
+        };
+      }
+
+      const message = response.data.message;
+
+      if (message.includes('O CPF informado no header')) {
+        throw new ErrorException(
+          ErrorsCode.DETALHE_PAGAMENTO_INVALIDO,
+          `CPF/CNPJ is invalid`,
+        );
+      }
+
+      if (message.includes('Entidade não encontrada')) {
+        throw new ErrorException(
+          ErrorsCode.DETALHE_PAGAMENTO_INVALIDO,
+          `Proxy ${proxy} not found`,
+        );
+      }
+
+      throw new ErrorException(
+        ErrorsCode.FALHA_INFRAESTRUTURA,
+        `Falha ao consultar DICT: proxy ${proxy}`,
       );
-
-      return response;
     } catch (error) {
-      console.error(
-        'Ocorreu um erro ao consultar o dict: ',
-        error?.response?.data || error.code,
+      this.logger.error(`Ocorreu um erro ao consultar o dict: ${error}`);
+
+      throw new ErrorException(
+        ErrorsCode.FALHA_INFRAESTRUTURA,
+        `Falha ao consultar DICT: proxy ${proxy}`,
       );
-      return error.response.data;
-    }
-  }
-
-  async getPix(id: number): Promise<GetDictDto> {
-    const token = await this.generateTokenPix();
-
-    const result = await lastValueFrom(
-      this.httpService.get(
-        `${this.BASE_URI}/instant_payment/details?idTransacao=${id}`,
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      ),
-    );
-    return result.data;
-  }
-
-  async getDict(data: any): Promise<any> {
-    try {
-      console.log('- Consultando o dict creditor');
-
-      const token = await this.generateTokenPix();
-
-      const response = await lastValueFrom(
-        this.httpService.get(`${this.BASE_URI}/key/consult`, {
-          data: data,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-      );
-
-      return response;
-    } catch (error) {
-      console.error(
-        'Ocorreu um erro ao consultar o dict: ',
-        error?.response?.data || error.code,
-      );
-      return error.response.data;
-    }
-  }
-
-  async generateTokenPix(): Promise<any> {
-    try {
-      const request = {
-        client_id: this.configService.get<string>('CLIENT_ID'),
-        client_secret: this.configService.get<string>('CLIENT_SECRET'),
-      };
-
-      const response = await lastValueFrom(
-        this.httpService.post(`${this.BASE_URI}/auth`, request),
-      );
-
-      return response.data.access_token;
-    } catch (error) {
-      return error?.response?.data;
     }
   }
 }

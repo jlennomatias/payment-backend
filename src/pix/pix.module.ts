@@ -1,12 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { PixService } from './pix.service';
-
-import { HttpModule } from '@nestjs/axios';
-import { ConfigModule } from '@nestjs/config';
+import { ExternalApiModule } from 'src/external-api/external-api.module';
 
 @Module({
-  imports: [HttpModule, ConfigModule.forRoot()],
-  providers: [PixService],
+  imports: [ExternalApiModule],
+  providers: [PixService, Logger],
   exports: [PixService],
 })
 export class PixModule {}

@@ -11,21 +11,21 @@ import {
 export class RulesPaymentV4Service {
   constructor(private pixService: PixService) {}
 
-  async validateProxyDebtor(proxy: string, cpfcnpj: string): Promise<boolean> {
-    const response = await this.pixService.validateProxyDebtor({
-      chave: proxy,
-      user_document: cpfcnpj,
-    });
+  // async validateProxyDebtor(proxy: string, cpfcnpj: string): Promise<boolean> {
+  //   const response = await this.pixService.validateProxyDebtor({
+  //     chave: proxy,
+  //     user_document: cpfcnpj,
+  //   });
 
-    if (response.status != 200) {
-      throw new UnprocessableEntityError(
-        `DETALHE_PAGAMENTO_INVALIDO`,
-        `Detalhe do pagamento invalido`,
-        `Proxy with ID ${proxy} not found`,
-      );
-    }
-    return response.data;
-  }
+  //   if (response.status != 200) {
+  //     throw new UnprocessableEntityError(
+  //       `DETALHE_PAGAMENTO_INVALIDO`,
+  //       `Detalhe do pagamento invalido`,
+  //       `Proxy with ID ${proxy} not found`,
+  //     );
+  //   }
+  //   return response.data;
+  // }
 
   async consentsAreEquals(
     createPaymentsV4Dto: CreatePaymentsV4Dto,
@@ -60,52 +60,6 @@ export class RulesPaymentV4Service {
     return true;
   }
 
-  async dictExist(proxy: string, cpfCnpj: string) {
-    console.log('Verificando se a chave pix existe');
-
-    const response = await this.pixService.getDict({
-      chave: proxy,
-      user_document: cpfCnpj,
-    });
-
-    const dict = response.data;
-
-    if (dict.length != 0) {
-      const dataDict = response.data.data;
-
-      return {
-        ispb: dataDict.ispb,
-        issuer: dataDict.nrAgencia,
-        number: dataDict.nrConta,
-        accountType: transformValueEnumAccountType(dataDict.tpConta),
-      };
-    }
-
-    const message = response.data.message;
-
-    if (message.includes('O CPF informado no header')) {
-      throw new UnprocessableEntityError(
-        `DETALHE_PAGAMENTO_INVALIDO`,
-        `Detalhe do pagamento invalido`,
-        `CPF/CNPJ is invalid`,
-      );
-    }
-
-    if (message.includes('Entidade não encontrada')) {
-      throw new UnprocessableEntityError(
-        `DETALHE_PAGAMENTO_INVALIDO`,
-        `Detalhe do pagamento invalido`,
-        `Proxy ${proxy} not found`,
-      );
-    }
-
-    throw new UnprocessableEntityError(
-      `FALHA_INFRAESTRUTURA`,
-      `Falha de infraestrutura`,
-      `Falha ao consultar DICT: proxy ${proxy}`,
-    );
-  }
-
   async verifyAccountAndDict(creditorAccount: any, dictCreditor: any) {
     console.log('Verificando se creditorAccount são iguais');
 
@@ -125,20 +79,20 @@ export class RulesPaymentV4Service {
     }
   }
 
-  async scheduleSingle(proxy: string) {
-    console.log('Verificando se a chave pix existe');
+  // async scheduleSingle(proxy: string) {
+  //   console.log('Verificando se a chave pix existe');
 
-    const pixData = await this.pixService.getDict(proxy);
+  //   const pixData = await this.pixService.getDict(proxy);
 
-    if (!pixData) {
-      throw new UnprocessableEntityError(
-        `DETALHE_PAGAMENTO_INVALIDO`,
-        `Detalhe do pagamento invalido`,
-        `Proxy with ID ${proxy} not found`,
-      );
-    }
-    return pixData;
-  }
+  //   if (!pixData) {
+  //     throw new UnprocessableEntityError(
+  //       `DETALHE_PAGAMENTO_INVALIDO`,
+  //       `Detalhe do pagamento invalido`,
+  //       `Proxy with ID ${proxy} not found`,
+  //     );
+  //   }
+  //   return pixData;
+  // }
 
   async rulesCancelPayments(cancelPayments: any): Promise<any> {
     console.log('Iniciando as regras de negócios');

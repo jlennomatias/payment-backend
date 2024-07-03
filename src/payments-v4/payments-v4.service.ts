@@ -1,64 +1,86 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CreatePaymentsV4Dto } from './dto/create-payments-v4.dto';
 import { CancelPaymentsV4Dto } from './dto/cancel-payments-v4.dto';
 import { ResponsePaymentsV4Dto } from './dto/response-payment-v4.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  DefaultError,
-  NotFoundError,
-  UnprocessableEntityError,
-} from 'src/erros';
+import { NotFoundError, UnprocessableEntityError } from 'src/erros';
 import { PixService } from 'src/pix/pix.service';
-import { RulesPaymentV4Service } from 'src/rules-payment-v4/rules-payment-v4.service';
-import { WebhookPaymentsService } from 'src/webhook-payments/webhook-payments.service';
-import { PaymentStatusType } from 'utils/enum_pix';
+// import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+// import { Logger } from 'winston';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { GetPaymentQuery } from './queries/get-payment/get-payment.query';
+import { plainToClass } from 'class-transformer';
+import { CreatePaymentsV4Command } from './commands/create-payment/create-payment.command';
+import { CancelPaymentsV4Command } from './commands/cancel-payment/cancel-payment.command';
+import { PaymentV4RulesService } from './business-rules/payment-rules.service';
+import { REQUEST } from '@nestjs/core';
+import { Request } from 'express';
+import { UpdatePaymentsV4Dto } from './dto/update-payment-v4.dto';
+import { UpdatePaymentsV4Command } from './commands/update-payment/update-payment.command';
+import { PaymentScheduler } from './payments.scheduler';
+import { ErrorResponseException } from 'src/exceptions/error.exception';
 
 @Injectable()
 export class PaymentsV4Service {
   constructor(
-    private prismaService: PrismaService,
-    private pixService: PixService,
-    private webhookPaymentsService: WebhookPaymentsService,
-    private rulesPaymentV4Service: RulesPaymentV4Service,
+    private readonly queryBus: QueryBus,
+    private readonly commandBus: CommandBus,
+    private readonly pixService: PixService,
+    private readonly logger: Logger,
+
+    private readonly paymentScheduler: PaymentScheduler,
+    private readonly paymentRulesService: PaymentV4RulesService,
+    // @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    @Inject(REQUEST) private readonly request: Request,
   ) {}
 
   async create(createPaymentsV4Dto: CreatePaymentsV4Dto) {
+    const correlationId = this.request.correlationId;
+    this.logger.debug('Hello world log', { correlationId });
     try {
-      await this.rulesPaymentV4Service.consentsAreEquals(createPaymentsV4Dto);
-
-      const firtPayment = createPaymentsV4Dto.data[0];
-
-      const dictCreditor = await this.rulesPaymentV4Service.dictExist(
-        firtPayment.proxy,
-        firtPayment.creditorAccount.cpfCnpj,
+      this.logger.log(
+        `Payload de pagamento: ${JSON.stringify(createPaymentsV4Dto)}`,
       );
 
-      await this.rulesPaymentV4Service.verifyAccountAndDict(
-        {
-          ...firtPayment.creditorAccount,
-          issuer: dictCreditor.issuer,
-        },
-        dictCreditor,
+      this.logger.debug(`Iniciando as regras de negócios`);
+      await this.paymentRulesService.validatePaymentDataAreEquals(
+        createPaymentsV4Dto,
+      );
+
+      // Consultando o dict
+      const dictData = await this.pixService.getDict(
+        createPaymentsV4Dto.data[0].proxy,
+        createPaymentsV4Dto.data[0].creditorAccount.cpfCnpj,
+      );
+
+      console.log('dictData', dictData);
+
+      await this.paymentRulesService.validateDictData(
+        createPaymentsV4Dto.data[0].creditorAccount,
+        createPaymentsV4Dto.data[0].proxy,
+        dictData,
       );
 
       // Criando pagamentos
+
       const payments = await Promise.all(
         createPaymentsV4Dto.data.map(async (dto) => {
+          this.logger.debug(`Validando datas`);
           const datePayment = dto.endToEndId
             .substring(9, 17)
             .replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
 
           const currentDate = new Date().toISOString().substring(0, 10);
 
-          const status =
-            currentDate >= datePayment
-              ? PaymentStatusType.RCVD
-              : PaymentStatusType.SCHD;
+          this.logger.debug(
+            `agora: ${currentDate}, data do pagamento: ${datePayment}`,
+          );
+          const status = currentDate >= datePayment ? 'RCVD' : 'SCHD';
+          this.logger.debug(`status: ${status}`);
+
           const date = datePayment;
 
-          const paymentData = {
+          const command = plainToClass(CreatePaymentsV4Command, {
             consentId: dto.consentId,
-            pixId: '',
             proxy: dto.proxy,
             endToEndId: dto.endToEndId,
             ibgeTownCode: dto.ibgeTownCode,
@@ -67,132 +89,67 @@ export class PaymentsV4Service {
             localInstrument: dto.localInstrument,
             cnpjInitiator: dto.cnpjInitiator,
             payment: {
-              create: {
-                amount: dto.payment.amount,
-                currency: dto.payment.currency,
-              },
+              amount: dto.payment.amount,
+              currency: dto.payment.currency,
             },
             transactionIdentification: dto?.transactionIdentification,
             remittanceInformation: dto.remittanceInformation,
             authorisationFlow: dto?.authorisationFlow,
             qrCode: dto.qrCode,
             debtorAccount: {
-              create: {
-                ispb: dto.debtorAccount.ispb,
-                issuer: dto.debtorAccount.issuer || null,
-                number: dto.debtorAccount.number,
-                accountType: dto.debtorAccount.accountType,
-              },
+              ispb: dto.debtorAccount.ispb,
+              issuer: dto.debtorAccount.issuer,
+              number: dto.debtorAccount.number,
+              accountType: dto.debtorAccount.accountType,
             },
             creditorAccount: {
-              create: {
-                ispb: dto.creditorAccount.ispb,
-                issuer: dictCreditor.issuer,
-                number: dto.creditorAccount.number,
-                accountType: dto.creditorAccount.accountType,
-              },
-            },
-          };
-
-          const paymentDB = await this.prismaService.payment.create({
-            data: paymentData,
-            include: {
-              payment: {
-                select: {
-                  amount: true,
-                  currency: true,
-                },
-              },
-              debtorAccount: {
-                select: {
-                  ispb: true,
-                  issuer: true,
-                  number: true,
-                  accountType: true,
-                },
-              },
-              creditorAccount: {
-                select: {
-                  ispb: true,
-                  issuer: true,
-                  number: true,
-                  accountType: true,
-                },
-              },
+              ispb: dto.creditorAccount.ispb,
+              issuer: dto.creditorAccount.issuer,
+              number: dto.creditorAccount.number,
+              accountType: dto.creditorAccount.accountType,
             },
           });
 
+          const payment = await this.commandBus.execute(command);
+
+          this.logger.debug(`response payment: ${JSON.stringify(payment)}`);
+
           // Criando o Pix
-          await this.pixService.createPix({
+          const pixData = await this.pixService.createPix({
             ...dto,
             creditorAccount: {
               ...dto.creditorAccount,
-              issuer: dictCreditor.issuer,
+              issuer: dictData.issuer,
             },
-            paymentId: paymentDB.paymentId,
-            status: paymentDB.status,
+            paymentId: payment.paymentId,
+            status: payment.status,
           });
 
-          // Acionando o webhook
-          // const webhook = this.webhookPaymentsService.fetchDataAndUpdate(
-          //   pixData.transactionId,
-          //   payment.paymentId,
-          //   payment.status,
-          // );
-          // console.log('retorno webhook', await webhook);
-
-          return paymentDB;
+          // Acionando o cron para alteração do status
+          this.paymentScheduler.startCheckingPayment(
+            pixData.transactionId,
+            payment.paymentId,
+            payment.status,
+          );
         }),
       );
 
       return this.mapToPaymentV4ResponseDto(payments);
     } catch (error) {
       // Tratar erros gerais
-      console.error('Erro ao cadastrar pagamento: ', error.message);
-      return this.mapToPaymentV4ResponseError(error);
+      this.logger.error(`Erro ao cadastrar pagamento:  ${error.code}`);
+
+      throw new ErrorResponseException(error.code, error.description);
     }
   }
 
   async findAll(id: string) {
     try {
-      const payments = await this.prismaService.payment.findMany({
-        where: { consentId: id },
-        include: {
-          payment: {
-            select: {
-              amount: true,
-              currency: true,
-            },
-          },
-          debtorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          creditorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          cancellation: {
-            select: {
-              reason: true,
-              cancelledFrom: true,
-              cancelledAt: true,
-              cancelledByIdentification: true,
-              cancelledByRel: true,
-            },
-          },
-        },
-      });
+      const query = plainToClass(GetPaymentQuery, { consentId: id });
 
-      if (payments.length === 0) {
+      const payments = await this.queryBus.execute(query);
+
+      if (!payments) {
         throw new NotFoundError(
           `No payments found for consent with ID ${id}`,
           `No payments found for consent with ID ${id}`,
@@ -204,9 +161,9 @@ export class PaymentsV4Service {
     } catch (error) {
       if (error.code === 'P2025') {
         throw new NotFoundError(
+          error.code,
           `Payment with ID ${id} not found`,
-          `Payment with ID ${id} not found`,
-          `Payment with ID ${id} not found`,
+          error.meta?.message || `Payment with ID ${id} not found`,
         );
       }
       throw error;
@@ -215,91 +172,81 @@ export class PaymentsV4Service {
 
   async findOne(id: string) {
     try {
-      const payment = await this.prismaService.payment.findUniqueOrThrow({
-        where: { paymentId: id },
-        include: {
-          payment: {
-            select: {
-              amount: true,
-              currency: true,
-            },
-          },
-          debtorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          creditorAccount: {
-            select: {
-              ispb: true,
-              issuer: true,
-              number: true,
-              accountType: true,
-            },
-          },
-          cancellation: {
-            select: {
-              reason: true,
-              cancelledFrom: true,
-              cancelledAt: true,
-              cancelledByIdentification: true,
-              cancelledByRel: true,
-            },
-          },
-        },
-      });
+      const query = plainToClass(GetPaymentQuery, { paymentId: id });
+
+      const payment = await this.queryBus.execute(query);
 
       return this.mapToPaymentV4ResponseDto(payment);
     } catch (error) {
       if (error.code === 'P2025') {
         throw new NotFoundError(
+          error.code,
           `Payment with ID ${id} not found`,
+          error.meta?.message || `Payment with ID ${id} not found`,
+        );
+      }
+
+      if (error.code === 'P2023') {
+        throw new NotFoundError(
+          error.code,
           `Payment with ID ${id} not found`,
-          `Payment with ID ${id} not found`,
+          error.meta.message,
         );
       }
       throw error;
     }
   }
 
-  async update(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
+  async cancel(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
-      console.log(`Iniciando o cancelamento do pagamento: ${id}`);
+      this.logger.log(
+        `Iniciando o cancelamento do pagamento: ${JSON.stringify(cancelPaymentsV4Dto)}`,
+      );
+      const query = plainToClass(GetPaymentQuery, { paymentId: id });
 
-      const payment = await this.prismaService.payment.findUnique({
-        where: { paymentId: id },
-      });
+      const payment = await this.queryBus.execute(query);
 
-      const reasonCancel =
-        await this.rulesPaymentV4Service.rulesCancelPayments(payment);
+      let reasonCancel = '';
+      if (payment.status === 'PDNG') {
+        reasonCancel = 'CANCELADO_PENDENCIA';
+      } else if (payment.status === 'SCHD') {
+        reasonCancel = 'CANCELADO_AGENDAMENTO';
+      } else if (payment.status === 'PATC') {
+        reasonCancel = 'CANCELADO_MULTIPLAS_ALCADAS';
+      } else {
+        throw new UnprocessableEntityError(
+          `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
+          `Pagamento não permite cancelamento`,
+          `Pagamento possui o status diferente de SCHD/PDNG/PATC`,
+        );
+      }
 
-      await this.prismaService.payment.update({
-        where: { paymentId: id },
-        data: {
-          status: cancelPaymentsV4Dto.data.status,
-          cancellation: {
-            create: {
-              reason: reasonCancel,
-              cancelledFrom:
-                cancelPaymentsV4Dto.data.cancelledFrom || 'INICIADORA',
-              cancelledByIdentification:
-                cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
-                  .identification,
-              cancelledByRel:
-                cancelPaymentsV4Dto.data.cancellation.cancelledBy.document.rel,
-            },
-          },
+      const command = plainToClass(CancelPaymentsV4Command, {
+        paymentId: id,
+        status: cancelPaymentsV4Dto.data.status,
+        cancellation: {
+          reason: reasonCancel,
+          cancelledFrom: cancelPaymentsV4Dto.data.cancelledFrom || 'INICIADORA',
+          cancelledByIdentification:
+            cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+              .identification,
+          cancelledByRel:
+            cancelPaymentsV4Dto.data.cancellation.cancelledBy.document.rel,
         },
       });
+      const affectedRows = await this.commandBus.execute(command);
 
-      console.log('alterado o status:');
+      if (!affectedRows) {
+        console.log('não achou pagamentos a serem alterados');
+      }
 
-      return await this.findOne(id);
+      this.logger.log(
+        `Pagamento cancelado com sucesso: ${JSON.stringify(affectedRows)}`,
+      );
+
+      return this.mapToPaymentV4ResponseDto(affectedRows);
     } catch (error) {
-      console.log(error);
+      this.logger.error(`Erro ao cancelar pagamento dado ${error}`);
       if (error.code === 'P2014') {
         throw new UnprocessableEntityError(
           `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
@@ -312,57 +259,77 @@ export class PaymentsV4Service {
     }
   }
 
-  async updateAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
+  async cancelAll(id: string, cancelPaymentsV4Dto: CancelPaymentsV4Dto) {
     try {
-      const paymentsUpdate = await this.prismaService.payment.findMany({
-        where: { consentId: id },
-      });
+      const query = plainToClass(GetPaymentQuery, { consentId: id });
 
-      const updatedPayments = [];
-      for (const payment of paymentsUpdate) {
-        console.log(`Cancelando o pagamento ${payment.paymentId}`);
+      const payments = await this.queryBus.execute(query);
 
-        const reasonCancel =
-          await this.rulesPaymentV4Service.rulesCancelPayments(payment);
-        try {
-          const updatedPayment = await this.prismaService.payment.update({
-            where: { paymentId: payment.paymentId },
-            data: {
+      const canceledPayments = [];
+
+      for (const payment of payments) {
+        this.logger.log(`Cancelando o pagamento ${payment.paymentId}`);
+
+        if (
+          payment.status === 'SCHD' ||
+          payment.status === 'PDNG' ||
+          payment.status === 'PATC'
+        ) {
+          let reasonCancel = '';
+
+          if (payment.status === 'PDNG') {
+            reasonCancel = 'CANCELADO_PENDENCIA';
+          } else if (payment.status === 'SCHD') {
+            reasonCancel = 'CANCELADO_AGENDAMENTO';
+          } else if (payment.status === 'PATC') {
+            reasonCancel = 'CANCELADO_MULTIPLAS_ALCADAS';
+          }
+
+          try {
+            const command = plainToClass(CancelPaymentsV4Command, {
+              paymentId: payment.paymentId,
               status: cancelPaymentsV4Dto.data.status,
               cancellation: {
-                create: {
-                  reason: reasonCancel,
-                  cancelledFrom: 'INICIADORA',
-                  cancelledByIdentification:
-                    cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
-                      .identification,
-                  cancelledByRel:
-                    cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
-                      .rel,
-                },
+                reason: reasonCancel,
+                cancelledFrom:
+                  cancelPaymentsV4Dto.data.cancelledFrom || 'INICIADORA',
+                cancelledByIdentification:
+                  cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                    .identification,
+                cancelledByRel:
+                  cancelPaymentsV4Dto.data.cancellation.cancelledBy.document
+                    .rel,
               },
-            },
-          });
-          updatedPayments.push(updatedPayment);
-        } catch (error) {
-          console.log(error.message);
+            });
+
+            const affectedRows = await this.commandBus.execute(command);
+
+            canceledPayments.push(affectedRows);
+          } catch (error) {
+            this.logger.error(`Erro ao cancelar o pagamento ${error.code}`);
+            if (error.code === 'P2025') {
+              throw new NotFoundError(
+                error.code,
+                `Payment with ID ${id} not found`,
+                error.meta?.message || `Payment with ID ${id} not found`,
+              );
+            }
+
+            if (error.code === 'P2023') {
+              throw new NotFoundError(
+                error.code,
+                `Payment with ID ${id} not found`,
+                error.meta.message,
+              );
+            }
+            throw error;
+          }
         }
       }
 
-      const payments = await this.prismaService.payment.findMany({
-        where: { consentId: id },
-        include: {
-          cancellation: {
-            select: {
-              cancelledAt: true,
-            },
-          },
-        },
-      });
-
-      return this.mapToCancellationPaymentV4ResponseDto(payments);
+      return this.mapToCancellationPaymentV4ResponseDto(canceledPayments);
     } catch (error) {
-      console.log(error);
+      this.logger.error(`Erro ao cancelar todos os pagamentos ${error}`);
       if (error.code === 'P2014') {
         throw new UnprocessableEntityError(
           `PAGAMENTO_NAO_PERMITE_CANCELAMENTO`,
@@ -371,6 +338,48 @@ export class PaymentsV4Service {
         );
       }
       throw error;
+    }
+  }
+
+  async update(id: string, updatePaymentsV4Dto: UpdatePaymentsV4Dto) {
+    try {
+      this.logger.log(
+        `Iniciando a atualização do pagamento: ${JSON.stringify(updatePaymentsV4Dto)}`,
+      );
+
+      const command = plainToClass(UpdatePaymentsV4Command, {
+        paymentId: id,
+        ...updatePaymentsV4Dto,
+      });
+      const affectedRows = await this.commandBus.execute(command);
+
+      if (!affectedRows) {
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+        );
+      }
+
+      return affectedRows;
+    } catch (error) {
+      this.logger.error(`Erro ao atualizar o pagamento dado ${error}`);
+      if (error.code === 'P2014') {
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+        );
+      }
+      if (error.code === 'P2025') {
+        throw new NotFoundError(
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+          `Payment with ID ${id} not found`,
+        );
+      }
+
+      return this.mapToPaymentV4ResponseError(error);
     }
   }
 
@@ -380,11 +389,13 @@ export class PaymentsV4Service {
       return params.split('.')[0] + 'Z';
     }
 
-    console.log('- Mapeando a response');
+    this.logger.log(`Mapeando a response`);
 
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
-      console.log('Transformar cada objeto da lista para o formato desejado');
+      this.logger.log(
+        `Transformar cada objeto da lista para o formato desejado`,
+      );
 
       data = payment.map((item) => ({
         paymentId: item.paymentId,
@@ -438,7 +449,7 @@ export class PaymentsV4Service {
         }), // Torna opcional
       }));
     } else {
-      console.log('Transformar o objeto único para o formato desejado');
+      this.logger.log(`Transformar o objeto único para o formato desejado`);
 
       data = {
         paymentId: payment.paymentId,
@@ -515,12 +526,13 @@ export class PaymentsV4Service {
       return params.split('.')[0] + 'Z';
     }
 
-    console.log('- Mapeando a response');
+    this.logger.log(`Mapeando a response`);
 
     // Verificar se payment é uma lista/array de objetos
     if (Array.isArray(payment)) {
-      console.log('Transformar cada objeto da lista para o formato desejado');
-
+      this.logger.log(
+        `Transformar cada objeto da lista para o formato desejado`,
+      );
       data = payment.map((item) => ({
         paymentId: item.paymentId,
         statusUpdateDateTime: dataFormat(
@@ -528,7 +540,7 @@ export class PaymentsV4Service {
         ),
       }));
     } else {
-      console.log('Transformar o objeto único para o formato desejado');
+      this.logger.log(`Transformar o objeto único para o formato desejado`);
 
       data = {
         paymentId: payment.paymentId,
@@ -553,25 +565,26 @@ export class PaymentsV4Service {
     };
   }
 
-  private mapToPaymentV4ResponseError(error): any {
-    console.log('Mapeando a saida de erro');
+  // private mapToPaymentV4ResponseError(error): any {
+  //   this.logger.log(`Mapeando a saida de erro`);
 
-    function dataFormat(params) {
-      return params.split('.')[0] + 'Z';
-    }
+  //   console.log('teste ', error);
 
-    // Retornar a estrutura com o tipo esperado
-    const currentDate = new Date(); // Obtém a data atual
-    const requestDateTime = dataFormat(currentDate.toISOString());
-    const errors = {
-      code: error.code,
-      title: error.title,
-      detail: error.detail,
-    };
-    const meta = {
-      requestDateTime: requestDateTime,
-    };
-    throw new DefaultError([errors], meta);
-    // return responseError;
-  }
+  //   function dataFormat(params) {
+  //     return params.split('.')[0] + 'Z';
+  //   }
+
+  //   const currentDate = new Date(); // Obtém a data atual
+  //   const requestDateTime = dataFormat(currentDate.toISOString());
+  //   const errors = {
+  //     code: error.code,
+  //     title: error.title,
+  //     detail: error.detail,
+  //   };
+  //   const meta = {
+  //     requestDateTime: requestDateTime,
+  //   };
+  //   throw new DefaultError([errors], meta);
+  //   // return responseError;
+  // }
 }

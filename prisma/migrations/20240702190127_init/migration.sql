@@ -2,7 +2,7 @@
 CREATE TABLE "payment" (
     "_id" TEXT NOT NULL,
     "consentId" TEXT NOT NULL,
-    "pixId" TEXT NOT NULL,
+    "pixId" TEXT,
     "endToEndId" TEXT NOT NULL,
     "creationDateTime" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "statusUpdateDateTime" TIMESTAMP(3) NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE "creditor_accounts" (
 CREATE TABLE "debtor_accounts" (
     "_id" TEXT NOT NULL,
     "ispb" TEXT NOT NULL,
-    "issuer" TEXT NOT NULL,
+    "issuer" TEXT,
     "number" TEXT NOT NULL,
     "accountType" TEXT NOT NULL,
     "paymentId" TEXT NOT NULL,
