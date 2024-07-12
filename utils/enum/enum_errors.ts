@@ -5,7 +5,7 @@ export enum ErrorsTitleCode {
   COBRANCA_INVALIDA = 'Cobrança inválido',
   CONSENTIMENTO_INVALIDO = 'Consentimento inválido',
   PARAMETRO_INVALIDO = 'Parâmetro inválido',
-  NAO_INFORMADO = 'Não informado',
+  NAO_INFORMADO = 'Não reportado/identificado pela instituição detentora de conta.',
   PAGAMENTO_DIVERGENTE_CONSENTIMENTO = 'Pagamento divergente com consentimento',
   DETALHE_PAGAMENTO_INVALIDO = 'Detalhe de pagamento inválido',
   PAGAMENTO_RECUSADO_DETENTORA = 'Pagamento recusado pela detentora',
@@ -13,6 +13,8 @@ export enum ErrorsTitleCode {
   ERRO_IDEMPOTENCIA = 'Erro de identificação',
   CONSENTIMENTO_PENDENTE_AUTORIZACAO = 'Consentimento pendente de autorização',
   FALHA_INFRAESTRUTURA = 'Houve falha interna durante a requisição',
+  PAGAMENTO_NAO_PERMITE_CANCELAMENTO = 'Pagamento não permite cancelamento',
+  PARAMETRO_NAO_INFORMADO = 'Parâmetro não informado ',
 }
 
 export enum ErrorsCode {
@@ -30,6 +32,8 @@ export enum ErrorsCode {
   ERRO_IDEMPOTENCIA = 'ERRO_IDEMPOTENCIA',
   CONSENTIMENTO_PENDENTE_AUTORIZACAO = 'CONSENTIMENTO_PENDENTE_AUTORIZACAO',
   FALHA_INFRAESTRUTURA = 'FALHA_INFRAESTRUTURA',
+  PAGAMENTO_NAO_PERMITE_CANCELAMENTO = 'PAGAMENTO_NAO_PERMITE_CANCELAMENTO',
+  PARAMETRO_NAO_INFORMADO = 'PARAMETRO_NAO_INFORMADO',
 }
 
 export const ErrorsStatusCode = {

@@ -38,3 +38,37 @@ export function transformValueEnumAccountType(numberAccountType: string) {
       return null;
   }
 }
+
+export function dataFormatEndToEnd(params: string) {
+  return params.substring(9, 17).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+}
+
+function formatDateBRtoISO(dateStr: string) {
+  const [day, month, year] = dateStr.substring(0, 10).split('/');
+  return `${year}-${month}-${day}`;
+}
+
+export function convertStatus(dataPayment: any) {
+  const currentDate = new Date().toLocaleString('pt-BR');
+  const dataAtual = formatDateBRtoISO(currentDate);
+  console.log(
+    `current: ${currentDate}, dataAtual: ${dataAtual}, dataPagamento: ${dataPayment}`,
+  );
+}
+
+export function dataFormat(params: any) {
+  return params.split('.')[0] + 'Z';
+}
+
+export function convertStatusClient(data: string): string {
+  const statusMap: { [key: string]: string } = {
+    '0': 'ACSC',
+    '1': 'RJCT',
+    '2': 'RJCT',
+    '3': 'RJCT',
+    '5': 'PDNG',
+    '8': 'ACPD',
+    '9': 'RCVD',
+  };
+  return statusMap[data] || data;
+}

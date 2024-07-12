@@ -2,6 +2,7 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '../http/http.service';
 import { ConfigService } from '@nestjs/config';
+import { response } from 'express';
 
 @Injectable()
 export class ExternalApiService {
@@ -28,8 +29,14 @@ export class ExternalApiService {
   }
 
   async getPix(pixId: string): Promise<any> {
-    const url = `${this.apiBaseUrl}/pix/${pixId}`;
-    return await this.httpService.get<any>(url);
+    const token = await this.getToken();
+
+    const url = `${this.apiBaseUrl}/instant_payment/details?idTransacao=${pixId}`;
+    const response = await this.httpService.get<any>(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return response;
   }
 
   async deletePix(pixId: string): Promise<any> {
@@ -43,17 +50,14 @@ export class ExternalApiService {
   }
 
   async getDictData(data: any): Promise<any> {
-    console.log('chegou aqui');
     const token = await this.getToken();
 
     const url = `${this.apiBaseUrl}/key/consult`;
-    const response = await this.httpService.post<any>(url, data, {
+
+    return await this.httpService.get<any>(url, {
       headers: { Authorization: `Bearer ${token}` },
+      data: data,
     });
-
-    console.log('response dict', response);
-
-    return response;
   }
 
   async getToken(): Promise<any> {
@@ -63,7 +67,12 @@ export class ExternalApiService {
         client_secret: this.clientSecret,
       };
 
-      return await this.httpService.post(`${this.apiBaseUrl}/auth`, request);
+      const response = (await this.httpService.post(
+        `${this.apiBaseUrl}/auth`,
+        request,
+      )) as any;
+
+      return response?.access_token;
     } catch (error) {
       return error?.response?.data;
     }

@@ -12,7 +12,7 @@ import {
   AccountPaymentsType,
   PersonType,
   localInstrument,
-} from 'utils/enum_pix';
+} from 'utils/enum/enum_pix';
 import { IsEnumType } from 'utils/validator_dto';
 
 class PaymentDto {

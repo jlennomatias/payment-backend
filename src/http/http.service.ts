@@ -10,7 +10,7 @@ export class HttpService {
       return response.data;
     } catch (error) {
       throw new HttpException(
-        `Erro ao fazer requisição GET para ${url}: ${error.message}`,
+        error.response.data,
         error.response?.status || 500,
       );
     }
@@ -26,7 +26,8 @@ export class HttpService {
       return response.data;
     } catch (error) {
       throw new HttpException(
-        `Erro ao fazer requisição POST para ${url}: ${error.message}`,
+        error.response.data ||
+          `Erro ao fazer requisição POST para ${url}: ${error.message}`,
         error.response?.status || 500,
       );
     }

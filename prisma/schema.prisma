@@ -30,15 +30,26 @@ model Payment {
   remittanceInformation     String
   authorisationFlow         String?
   qrCode                    String?
-  code                      String?
-  detail                    String?
-  reason                    String?
+  // code                      String?
+  // detail                    String?
+  // reason                    String?
   payment                   PaymentDetail?
   creditorAccount           CreditorAccount?
   debtorAccount             DebtorAccount?
   cancellation              Cancellation?
+  rejectionReason           RejectionReason?
 
   @@map("payment")
+}
+
+model RejectionReason {
+  id        String  @id @default(uuid()) @map("_id")
+  code      String
+  detail    String
+  Payment   Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade, onUpdate: Cascade)
+  paymentId String  @unique
+
+  @@map("rejection_reason")
 }
 
 model CreditorAccount {

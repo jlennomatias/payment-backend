@@ -16,11 +16,18 @@ CREATE TABLE "payment" (
     "remittanceInformation" TEXT NOT NULL,
     "authorisationFlow" TEXT,
     "qrCode" TEXT,
-    "code" TEXT,
-    "detail" TEXT,
-    "reason" TEXT,
 
     CONSTRAINT "payment_pkey" PRIMARY KEY ("_id")
+);
+
+-- CreateTable
+CREATE TABLE "rejection_reason" (
+    "_id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "detail" TEXT,
+    "paymentId" TEXT NOT NULL,
+
+    CONSTRAINT "rejection_reason_pkey" PRIMARY KEY ("_id")
 );
 
 -- CreateTable
@@ -100,6 +107,9 @@ CREATE TABLE "automaticPayments" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "rejection_reason_paymentId_key" ON "rejection_reason"("paymentId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "creditor_accounts_paymentId_key" ON "creditor_accounts"("paymentId");
 
 -- CreateIndex
@@ -113,6 +123,9 @@ CREATE UNIQUE INDEX "PaymentDetail_paymentId_key" ON "PaymentDetail"("paymentId"
 
 -- CreateIndex
 CREATE UNIQUE INDEX "automaticPayments_recurringConsentId_key" ON "automaticPayments"("recurringConsentId");
+
+-- AddForeignKey
+ALTER TABLE "rejection_reason" ADD CONSTRAINT "rejection_reason_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "payment"("_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "creditor_accounts" ADD CONSTRAINT "creditor_accounts_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "payment"("_id") ON DELETE CASCADE ON UPDATE CASCADE;

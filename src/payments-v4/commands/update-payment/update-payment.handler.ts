@@ -2,8 +2,8 @@ import { ICommandHandler, CommandHandler, EventBus } from '@nestjs/cqrs';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UpdatePaymentsV4Command } from './update-payment.command';
 import { StatusUpdadeEvent } from 'src/webhook-payments/events/update-payment/update-status.event';
-import { UpdatePaymentsV4Dto } from 'src/payments-v4/dto/update-payment-v4.dto';
 import { Logger } from '@nestjs/common';
+import { UpdatePaymentsV4Dto } from 'src/payments-v4/dto/update-payment-v4.dto';
 
 @CommandHandler(UpdatePaymentsV4Command)
 export class UpdatePaymentHandler
@@ -32,8 +32,6 @@ export class UpdatePaymentHandler
           where: { paymentId: command.paymentId },
           data: {
             status: command.status,
-            pixId: command.pixId,
-            transactionIdentification: command.transactionIdentification,
           },
         });
 

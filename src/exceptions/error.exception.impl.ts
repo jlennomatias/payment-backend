@@ -7,10 +7,8 @@ export class ErrorExceptionFilter implements ExceptionFilter {
   catch(exception: ErrorResponseException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    // const request = ctx.getRequest<Request>();
 
-    const currentDate = new Date(); // Obtém a data atual
-    const requestDateTime = currentDate.toISOString();
+    const requestDateTime = new Date().toISOString();
 
     response.status(exception.status).json({
       errors: [

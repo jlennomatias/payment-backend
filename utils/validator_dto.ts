@@ -9,14 +9,11 @@ import {
 @ValidatorConstraint({ name: 'IsEnumType', async: false })
 export class IsEnumNameConstraint implements ValidatorConstraintInterface {
   validate(value: any, args: ValidationArguments) {
-    // const enumValues = args.constraints[0];
-
     const enumType = args.constraints[0] as any;
     const enumNames = Object.keys(enumType).filter(
       (key) => typeof enumType[key] === 'number',
     );
     return enumNames.includes(value);
-    // return Object.keys(enumValues).includes(value);
   }
 
   defaultMessage(args: ValidationArguments) {
