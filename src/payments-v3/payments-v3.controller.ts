@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { PaymentsV3Service } from './payments-v3.service';
-import { CreatePaymentsV3Dto } from './dto/create-payments-V3.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { CreatePaymentsV3Dto } from './dto/create-payments-v3.dto';
 
 @Controller('payments/v3/')
 export class PaymentsV3Controller {
@@ -9,8 +9,8 @@ export class PaymentsV3Controller {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  create(@Body() CreatePaymentsV3Dto: CreatePaymentsV3Dto) {
-    return this.paymentsV3Service.create(CreatePaymentsV3Dto);
+  create(@Body() CreatePaymentsV3: CreatePaymentsV3Dto) {
+    return this.paymentsV3Service.create(CreatePaymentsV3);
   }
 
   @UseGuards(JwtAuthGuard)
