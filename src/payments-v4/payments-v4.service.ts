@@ -134,7 +134,7 @@ export class PaymentsV4Service {
       this.rejectionReasonUpdate(
         error.data.paymentId,
         error.code,
-        error.description,
+        error.description || 'Não identificado',
       );
 
       if (error.code === 'P2021') {

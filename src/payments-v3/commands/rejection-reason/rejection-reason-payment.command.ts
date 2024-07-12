@@ -3,6 +3,6 @@ export class RejectionReasonPaymentsV3Command {
   status: string;
   rejectionReason: {
     code: string;
-    datail: string;
+    detail: string;
   };
 }

@@ -24,7 +24,7 @@ CREATE TABLE "payment" (
 CREATE TABLE "rejection_reason" (
     "_id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
-    "detail" TEXT,
+    "detail" TEXT NOT NULL,
     "paymentId" TEXT NOT NULL,
 
     CONSTRAINT "rejection_reason_pkey" PRIMARY KEY ("_id")

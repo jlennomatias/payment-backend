@@ -29,7 +29,10 @@ export class RejectionReasonPaymentHandler
         data: {
           status: command.status,
           rejectionReason: {
-            create: command.rejectionReason,
+            create: {
+              code: command.rejectionReason.code,
+              detail: command.rejectionReason.detail,
+            },
           },
         },
         include: {

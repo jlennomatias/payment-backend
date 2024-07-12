@@ -37,7 +37,7 @@ export class PaymentsV3Service {
 
       this.logger.debug(`Iniciando as regras de negócios`);
 
-      const dto = createPaymentsV3Dto.data;
+      const dto = createPaymentsV3Dto?.data;
 
       if (dto.localInstrument !== 'MANU' && dto.localInstrument != 'INIC') {
         // Consultando o dict
@@ -120,15 +120,11 @@ export class PaymentsV3Service {
 
       return this.mapToPaymentV3ResponseDto(payment);
     } catch (error) {
-      console.log('errror', error);
-
-      if (error.data) {
-        this.rejectionReasonUpdate(
-          error.data.paymentId,
-          error.code,
-          error.description,
-        );
-      }
+      await this.rejectionReasonUpdate(
+        error.data.paymentId,
+        error.code,
+        error.description || 'Não identificado',
+      );
 
       if (error.code === 'P2021') {
         throw new ErrorResponseException(

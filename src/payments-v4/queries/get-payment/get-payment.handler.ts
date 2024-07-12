@@ -10,7 +10,6 @@ export class GetPaymentHandler
   constructor(private prismaService: PrismaService) {}
 
   async execute(query: GetPaymentQuery): Promise<any | null> {
-    console.log(query);
     const include = {
       payment: {
         select: {

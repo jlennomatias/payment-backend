@@ -12,6 +12,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   const environment = configService.get<string>('NODE_ENV');
+  const port = configService.get<string>('PORT') || 3000;
 
   app.useLogger(
     environment === 'production'
@@ -25,6 +26,8 @@ async function bootstrap() {
     new JwtExceptionInterceptor(),
   );
 
-  await app.listen(3000);
+  console.log('SERVICE ', port);
+
+  await app.listen(port);
 }
 bootstrap();
