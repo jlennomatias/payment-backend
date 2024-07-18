@@ -15,36 +15,36 @@ services:
       - ./data:/data/postgresql
       - ./init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql
 
-  mongo:
-    build: .
-    restart: always
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: mongo
-      MONGO_INITDB_ROOT_PASSWORD: mongo
-      MONGO_INITDB_DATABASE: mongo
-      MONGO_REPLICA_HOST: localhost
-      MONGO_REPLICA_PORT: 27017
-    ports:
-      - '27017:27017'
+  # mongo:
+  #   build: .
+  #   restart: always
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: mongo
+  #     MONGO_INITDB_ROOT_PASSWORD: mongo
+  #     MONGO_INITDB_DATABASE: mongo
+  #     MONGO_REPLICA_HOST: localhost
+  #     MONGO_REPLICA_PORT: 27017
+  #   ports:
+  #     - '27017:27017'
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0.1
-    container_name: keycloak
-    restart: always
-    command: ["start-dev", "--import-realm"]
-    environment:
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
+  # keycloak:
+  #   image: quay.io/keycloak/keycloak:24.0.1
+  #   container_name: keycloak
+  #   restart: always
+  #   command: ["start-dev", "--import-realm"]
+  #   environment:
+  #     - KEYCLOAK_ADMIN=admin
+  #     - KEYCLOAK_ADMIN_PASSWORD=admin
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - postgres
 
-  redis:
-    image: redis
-    restart: always
-    ports:
-      - "6379:6379"
+  # redis:
+  #   image: redis
+  #   restart: always
+  #   ports:
+  #     - "6379:6379"
 
 volumes:
   data:

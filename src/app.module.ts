@@ -10,6 +10,8 @@ import { ExternalApiModule } from './external-api/external-api.module';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PaymentsV4Module } from './features/payments/payments-v4/payments-v4.module';
+import { AutomaticPaymentsV1Module } from './features/payments/automatic-payments-v1/automatic-payments-v1.module';
 
 @Module({
   imports: [
